@@ -1,0 +1,21 @@
+meta:
+  task_id: "cut_fruit_tool_error"
+  task_name: "Cut fruit: wrong tool"
+  goal_en: "Place the apple on the cutting board and cut it using the small knife."
+  error_type: "wrong_tool"        # 研究里就用这个 label
+  expected_tool: "knife"          # 正确工具
+  explanation_timing: "immediate" # immediate / delayed / none
+
+tools:
+  candidates: ["knife", "fork", "spoon"]
+  correct: "knife"
+
+llm:
+  hint: >
+    The robot is in a tabletop fruit-cutting scenario.
+    It is supposed to use the small knife to cut the apple.
+    In this experimental condition we are interested in cases where the robot
+    initially uses the wrong utensil (for example a fork or a spoon) instead of the knife.
+    Focus on clearly explaining that the tool choice was incorrect, why that matters
+    for safety and task success, and what the robot will do to recover
+    (put down the wrong tool, pick up the knife, and continue).

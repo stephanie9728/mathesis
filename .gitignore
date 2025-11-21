@@ -1,0 +1,40 @@
+main/__pycache__
+main/projection/__pycache__
+LLM/__pycache__
+main/thor_tasks
+main/state_summary
+main/recovery
+*.pt
+.vscode/
+*.bak
+*.mp4
+__pycache__/
+# Python cache
+__pycache__/
+*.pyc
+
+# Models & weights
+*.pt
+*.pkl
+*.pickle
+
+# Videos
+*.mp4
+*.mov
+*.avi
+
+# Backups & temp
+*.bak/
+.ipynb_checkpoints/
+.DS_Store
+
+# VSCode
+.vscode/
+camera_demo*/
+camera_demo_*/
+state_summary/
+thor_tasks/
+realcam/
+recovery/
+assets/
+

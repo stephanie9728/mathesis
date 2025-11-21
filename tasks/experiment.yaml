@@ -1,0 +1,108 @@
+meta:
+  study_name: "breakfast-error-aware-long"
+  explanation_timing: "immediate"   # 可切: none / immediate / delayed
+
+perception:
+  enable: true
+  errors: { label_swap: 0.06, relation_flip: 0.06, drop_object: 0.02 }
+  confusion_map:
+    bowl: ["plate"]
+    cup: ["mug","glass"]
+    spoon: ["fork"]
+    fork: ["spoon"]
+    kettle: ["bottle"]
+
+actions_allowed: ["pick(obj)","place(obj, surface)","pour(src, dst)","stir(tool, container)","noop()"]
+
+predicates:
+  on: { type: "edge", positive: ["on(a,b)"] }
+  in: { type: "edge", positive: ["in(a,b)"] }
+  stirred_with: { type: "edge", positive: ["stirred_with(a,b)"] }
+  clear_of: { type: "edge", negative: ["near(a,b)"] }
+
+# ------------------ T1：麦片牛奶（误把牛奶倒进杯子） ------------------
+tasks:
+  - id: "T1_cereal_milk"
+    name: "Cereal + milk in bowl; stir with spoon; cup stays aside."
+    objects: ["cereal","milk","bowl","cup","spoon","cereal_box","dining table"]
+    # 目标更细，迫使多步：摆放→加麦片→加牛奶→搅拌→收纳
+    goals:
+      - { pred: "on", args: ["bowl","dining table"] }
+      - { pred: "in", args: ["cereal","bowl"] }
+      - { pred: "in", args: ["milk","bowl"] }
+      - { pred: "stirred_with", args: ["spoon","bowl"] }
+      - { pred: "on", args: ["spoon","dining table"] }
+      - { pred: "on", args: ["cereal_box","dining table"] }
+      - { pred: "clear_of", args: ["cup","bowl"] }   # 杯子保持一旁，避免靠太近
+    checkpoints:
+      - { id: "C_bowl_on_table",  expect: "on(bowl,dining table)", must_explain_on_fail: true }
+      - { id: "C_milk_in_bowl",   expect: "in(milk,bowl)",         must_explain_on_fail: true }
+      - { id: "C_stir_spoon",     expect: "stirred_with(spoon,bowl)", must_explain_on_fail: true }
+    # 单一错误：在加完麦片之后，把牛奶错倒进“杯子”
+    exec_errors:
+      deterministic:
+        - { step: 5, type: "wrong_pour_target", from: "milk", wrong_to: "cup" }
+    # 给 LLM 的计划提示（不强制顺序，只是暗示）
+    plan_hint:
+      - "place(bowl, dining table)"
+      - "pour(cereal, bowl)"
+      - "place(cereal_box, dining table)"
+      - "pick(milk)"
+      - "pour(milk, bowl)"          # ← 这里会被错误注入改成 cup
+      - "place(milk, dining table)"
+      - "stir(spoon, bowl)"
+      - "place(spoon, dining table)"
+
+# ------------------ T2：速溶咖啡（搅拌工具用错 → 叉子） ------------------
+  - id: "T2_instant_coffee"
+    name: "Instant coffee: powder + hot water in cup; stir with spoon; cup on table."
+    objects: ["coffee_powder","hot_water","kettle","cup","spoon","fork","plate","dining table"]
+    goals:
+      - { pred: "on", args: ["cup","dining table"] }
+      - { pred: "in", args: ["coffee_powder","cup"] }
+      - { pred: "in", args: ["hot_water","cup"] }
+      - { pred: "stirred_with", args: ["spoon","cup"] }
+      - { pred: "on", args: ["spoon","dining table"] }
+      - { pred: "on", args: ["kettle","dining table"] }
+    checkpoints:
+      - { id: "C_powder_in_cup",  expect: "in(coffee_powder,cup)", must_explain_on_fail: true }
+      - { id: "C_water_in_cup",   expect: "in(hot_water,cup)",     must_explain_on_fail: true }
+      - { id: "C_stir_spoon_cup", expect: "stirred_with(spoon,cup)", must_explain_on_fail: true }
+    exec_errors:
+      deterministic:
+        - { step: 7, type: "wrong_tool_for_stir", wrong_tool: "fork", container: "cup" }
+    plan_hint:
+      - "place(cup, dining table)"
+      - "pour(coffee_powder, cup)"
+      - "pick(kettle)"
+      - "pour(hot_water, cup)"
+      - "place(kettle, dining table)"
+      - "pick(spoon)"
+      - "stir(spoon, cup)"         # ← 这里会被错误注入改成 fork
+      - "place(spoon, dining table)"
+
+# ------------------ T3：泡茶（热水错倒进碗） ------------------
+  - id: "T3_tea_setup"
+    name: "Tea: teabag + hot water in cup; spoon back on table; keep bowl away."
+    objects: ["teabag","hot_water","kettle","cup","bowl","spoon","dining table"]
+    goals:
+      - { pred: "on", args: ["cup","dining table"] }
+      - { pred: "in", args: ["teabag","cup"] }
+      - { pred: "in", args: ["hot_water","cup"] }
+      - { pred: "stirred_with", args: ["spoon","cup"] }
+      - { pred: "on", args: ["spoon","dining table"] }
+      - { pred: "clear_of", args: ["bowl","cup"] }
+    checkpoints:
+      - { id: "C_teabag_in_cup",  expect: "in(teabag,cup)",        must_explain_on_fail: true }
+      - { id: "C_water_in_cup2",  expect: "in(hot_water,cup)",     must_explain_on_fail: true }
+    exec_errors:
+      deterministic:
+        - { step: 6, type: "wrong_pour_target", from: "hot_water", wrong_to: "bowl" }
+    plan_hint:
+      - "place(cup, dining table)"
+      - "pour(teabag, cup)"
+      - "pick(kettle)"
+      - "pour(hot_water, cup)"     # ← 这里会被错误注入改成 bowl
+      - "place(kettle, dining table)"
+      - "stir(spoon, cup)"
+      - "place(spoon, dining table)"

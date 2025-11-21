@@ -1,0 +1,38 @@
+meta:
+  study_name: "home-desk-smoke-test"
+  explanation_timing: "immediate"
+
+perception:
+  enable: true
+  errors: { label_swap: 0.05, relation_flip: 0.05, drop_object: 0.02 }
+  confusion_map:
+    bowl:  ["plate"]
+    cup:   ["mug","glass"]
+    spoon: ["fork"]
+
+actions_allowed: ["pick(obj)","place(obj, surface)","pour(src, dst)","stir(tool, container)","noop()"]
+
+predicates:
+  on:           { type: "edge", positive: ["on(a,b)"] }
+  in:           { type: "edge", positive: ["in(a,b)"] }
+  stirred_with: { type: "edge", positive: ["stirred_with(a,b)"] }
+  clear_of:     { type: "edge", negative: ["near(a,b)"] }
+
+tasks:
+  - id: "T_home_cereal"
+    name: "Home cereal quick test"
+    objects: ["cereal","milk","bowl","cup","spoon","dining table"]
+    goals:
+      - { pred: "on", args: ["bowl","dining table"] }
+      - { pred: "in", args: ["cereal","bowl"] }
+      - { pred: "in", args: ["milk","bowl"] }
+      - { pred: "stirred_with", args: ["spoon","bowl"] }
+    # 只插一个小错误：把牛奶错倒进杯子
+    exec_errors:
+      deterministic:
+        - { step: 4, type: "wrong_pour_target", from: "milk", wrong_to: "cup" }
+    plan_hint:
+      - "place(bowl, dining table)"
+      - "pour(cereal, bowl)"
+      - "pour(milk, bowl)"
+      - "stir(spoon, bowl)"

@@ -1,0 +1,57 @@
+meta:
+  study_name: "mini-milk-breakfast"
+  explanation_timing: "immediate"
+  llm_model: "gpt-4o-mini"
+
+paths:
+  video_root: "./camera_demo_mini"   # 改成你的 VIDEO_ROOT
+
+objects:
+  - cup
+  - bowl
+  - milk
+  - table
+
+task:
+  id: "breakfast-milk-mini"
+  name: "迷你早餐：把牛奶倒进碗，而不是杯子"
+  goal: "将牛奶倒入碗（不是倒进杯子），最后让杯子位于碗的右侧。"
+  steps:
+    - "拿起牛奶靠近碗"
+    - "对准碗口缓慢倒入牛奶"
+    - "放下牛奶"
+    - "把杯子移动到碗的右侧"
+
+checks:
+  require:
+    - {type: node, label: bowl, ge: 1, message: "应检测到碗"}
+    - {type: node, label: cup,  ge: 1, message: "应检测到水杯"}
+    - {type: edge, s: person, r: near, o: bowl, min_count: 2, message: "操作中应靠近碗"}
+  forbid:
+    - {type: edge, s: milk,   r: near, o: cup, min_count: 3, message: "不应对准杯子（目标是碗）"}
+    - {type: edge, s: bottle, r: near, o: cup, min_count: 3, message: "（容错）瓶装物不应对准杯子"}
+
+failures:
+  - id: F1-mispour-to-cup-milk
+    when: immediate
+    condition: {type: edge, s: milk, r: near, o: cup, min_count: 3}
+    explain: "检测到你将牛奶对准/靠近了杯子，正确目标应为碗。"
+    correction_plan:
+      - "把牛奶移到碗的上方中央，瓶口/开口对准碗口"
+      - "缓慢倒入并观察液面进入碗"
+      - "完成后检查桌面有无溢出并擦拭"
+
+  - id: F1b-mispour-to-cup-bottle
+    when: immediate
+    condition: {type: edge, s: bottle, r: near, o: cup, min_count: 3}
+    explain: "（容错）检测到“瓶装物”被对准/靠近杯子，目标应为碗。可能是牛奶被识别为 bottle。"
+    correction_plan:
+      - "将容器移到碗的上方中央，瓶口对准碗口"
+      - "缓慢倒入并观察液面进入碗"
+
+  - id: F2-placement-wrong-side
+    when: delayed
+    condition: {type: edge, s: cup, r: left_of, o: bowl, min_count: 2}
+    explain: "杯子最终在碗的左侧，目标状态应在碗的右侧。"
+    correction_plan:
+      - "将杯子移动到碗的右侧，并保持一杯的间距"

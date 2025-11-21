@@ -1,0 +1,25 @@
+meta:
+  study_name: "pour-cereal-inability"
+  explanation_timing: "immediate"   # 也可以改成 "delayed" 做对比条件
+
+paths:
+  video_root: "./camera_demo_cereal"
+
+task:
+  id: "pour_cereal_inability"
+  name: "倒麦片：够不到/倒不出"
+  goal: "把麦片倒进桌面上的碗里。"
+  correct_tool: null
+  candidate_tools: []   # 这里不用工具推断
+
+failures:
+  - id: "pour_inability"
+    type: "agent_inability"
+    # 这个任务的视频一定是失败，所以直接 True
+    when: "True"
+    title_zh: "我没能顺利把麦片倒进碗里"
+    llm_hint_zh: >
+      机器人试图从较高或较远的麦片盒里把麦片倒进碗里，但因为盒子太高、
+      倾斜角度不合适或抓取姿态受限，麦片没有正常倒进碗里。
+      请让语言模型解释“我想倒麦片，但机械限制/距离导致失败”，
+      并提出例如调整抓取位置、改变倾斜角度、寻求人类帮助等修正计划。

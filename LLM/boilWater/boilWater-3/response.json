@@ -1,0 +1,198 @@
+{
+    "20250814-142034": {
+        "prompt": {
+            "system": "You are expected to provide explanation for a robot failure. You are given the robot actions and observations so far. Briefly explain the failure in 1-2 sentence. Mention relevant time steps if possible.",
+            "user": "The robot task is to boil water. At 00:24, a failure was identified.\n\n[Robot actions and observations before 00:24]\n00:01. Action: Move to pot. Visual observation: nothing is inside robot gripper.\n00:09. Action: Move to pot. Visual observation: faucet (turned off), sink. nothing is inside robot gripper.\n00:17. Action: Move to pot. Visual observation: pot (empty and clean), faucet (turned off), sink. pot is on top of third countertop. nothing is inside robot gripper.\n00:19. Action: Move to pot. Visual observation: pot (empty and clean), faucet (turned off), sink, first stove burner (turned off). pot is on top of third countertop. nothing is inside robot gripper.\n00:21. Action: Move to pot. Visual observation: nothing is inside robot gripper.\n\n[Observation at the end of 00:24]\nAction: Pick up pot. Visual observation: pan is inside robot gripper.\n\nQ: Infer from [Robot actions and observations before 00:24] or [Observation at the end of 00:24], briefly explain what happened at 00:24 and what caused the failure.\nA:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0
+        },
+        "response": "At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to accurately assess the contents of the countertop or its gripper during the previous actions, leading to the incorrect object being picked up."
+    },
+    "20250814-142051": {
+        "prompt": {
+            "system": "Provide a plan with the available actions for the robot to recover from the failure and finish the task.\nAvailable actions: pick up, put in some container, put on some receptacle, open (e.g. fridge), close, toggle on (e.g. faucet), toggle off, slice object, crack object (e.g. egg), pour (liquid) from A to B.\nThe robot can only hold one object in its gripper, in other words, if there's object in the robot gripper, it can no longer pick up another object.\n###\nTo clean a dirty object A, the plan is\n1. (pick_up, A)\n2. (put_in, A, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pour, A, sink)\n6. (pick_up, A)\nObject A should be clean after executing these actions.\n###\nThe plan should 1) not contain any if statements 2) contain only the available actions 3) resemble the format of the initial plan.\n",
+            "user": "Task: boil water\nInitial plan:\n1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)\nFailure reason: At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to accurately assess the contents of the countertop or its gripper during the previous actions, leading to the incorrect object being picked up.\nCurrent state: fourth stove burner (turned on), second stove burner (turned off), sink, third stove burner (turned off), pot (empty and clean), first stove burner (turned off), faucet (turned off). pot is on top of third countertop. pan is on top of fourth stove burner. nothing is inside robot gripper.\nSuccess state: a pot is filled with water, the pot is on top of a stove burner that is turned on.\nCorrection plan:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.5,
+            "presence_penalty": 0.3
+        },
+        "response": "1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)"
+    },
+    "20250814-143340": {
+        "prompt": {
+            "system": "Provide a plan with the available actions for the robot to recover from the failure and finish the task.\nAvailable actions: pick up, put in some container, put on some receptacle, open (e.g. fridge), close, toggle on (e.g. faucet), toggle off, slice object, crack object (e.g. egg), pour (liquid) from A to B.\nThe robot can only hold one object in its gripper, in other words, if there's object in the robot gripper, it can no longer pick up another object.\n###\nTo clean a dirty object A, the plan is\n1. (pick_up, A)\n2. (put_in, A, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pour, A, sink)\n6. (pick_up, A)\nObject A should be clean after executing these actions.\n###\nThe plan should 1) not contain any if statements 2) contain only the available actions 3) resemble the format of the initial plan.\n",
+            "user": "Task: boil water\nInitial plan:\n1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)\nFailure reason: At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to accurately assess the contents of the countertop or its gripper during the previous actions, leading to the incorrect object being picked up.\nCurrent state: fourth stove burner (turned on), second stove burner (turned off), sink, third stove burner (turned off), pot (empty and clean), first stove burner (turned off), faucet (turned off). pot is on top of third countertop. pan is on top of fourth stove burner. nothing is inside robot gripper.\nSuccess state: a pot is filled with water, the pot is on top of a stove burner that is turned on.\nCorrection plan:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.5,
+            "presence_penalty": 0.3
+        },
+        "response": "1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner) \n7. (toggle_on, fourth stove burner) \n\nThis correction plan assumes that the robot will correctly identify and pick up the pot this time without confusion with the pan."
+    },
+    "20250814-144138": {
+        "prompt": {
+            "system": "Provide a plan with the available actions for the robot to recover from the failure and finish the task.\nAvailable actions: pick up, put in some container, put on some receptacle, open (e.g. fridge), close, toggle on (e.g. faucet), toggle off, slice object, crack object (e.g. egg), pour (liquid) from A to B.\nThe robot can only hold one object in its gripper, in other words, if there's object in the robot gripper, it can no longer pick up another object.\n###\nTo clean a dirty object A, the plan is\n1. (pick_up, A)\n2. (put_in, A, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pour, A, sink)\n6. (pick_up, A)\nObject A should be clean after executing these actions.\n###\nThe plan should 1) not contain any if statements 2) contain only the available actions 3) resemble the format of the initial plan.\n",
+            "user": "Task: boil water\nInitial plan:\n1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)\nFailure reason: At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to accurately assess the contents of the countertop or its gripper during the previous actions, leading to the incorrect object being picked up.\nCurrent state: fourth stove burner (turned on), second stove burner (turned off), sink, third stove burner (turned off), pot (empty and clean), first stove burner (turned off), faucet (turned off). pot is on top of third countertop. pan is on top of fourth stove burner. nothing is inside robot gripper.\nSuccess state: a pot is filled with water, the pot is on top of a stove burner that is turned on.\nCorrection plan:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.5,
+            "presence_penalty": 0.3
+        },
+        "response": "1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)"
+    },
+    "20250814-150148": {
+        "prompt": {
+            "system": "You are expected to provide explanation for a robot failure. You are given the robot actions and observations so far. Briefly explain the failure in 1-2 sentence. Mention relevant time steps if possible.",
+            "user": "The robot task is to boil water. At 00:24, a failure was identified.\n\n[Robot actions and observations before 00:24]\n00:01. Action: Move to pot. Visual observation: nothing is inside robot gripper.\n00:09. Action: Move to pot. Visual observation: faucet (turned off), sink. nothing is inside robot gripper.\n00:17. Action: Move to pot. Visual observation: pot (empty and clean), faucet (turned off), sink. pot is on top of third countertop. nothing is inside robot gripper.\n00:19. Action: Move to pot. Visual observation: pot (empty and clean), faucet (turned off), sink, first stove burner (turned off). pot is on top of third countertop. nothing is inside robot gripper.\n00:21. Action: Move to pot. Visual observation: nothing is inside robot gripper.\n\n[Observation at the end of 00:24]\nAction: Pick up pot. Visual observation: pan is inside robot gripper.\n\nQ: Infer from [Robot actions and observations before 00:24] or [Observation at the end of 00:24], briefly explain what happened at 00:24 and what caused the failure.\nA:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0
+        },
+        "response": "At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to properly distinguish between the pot and the pan during its actions leading up to that moment, particularly since it repeatedly observed the pot as empty and clean without successfully picking it up."
+    },
+    "20250814-150250": {
+        "prompt": {
+            "system": "Provide a plan with the available actions for the robot to recover from the failure and finish the task.\nAvailable actions: pick up, put in some container, put on some receptacle, open (e.g. fridge), close, toggle on (e.g. faucet), toggle off, slice object, crack object (e.g. egg), pour (liquid) from A to B.\nThe robot can only hold one object in its gripper, in other words, if there's object in the robot gripper, it can no longer pick up another object.\n###\nTo clean a dirty object A, the plan is\n1. (pick_up, A)\n2. (put_in, A, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pour, A, sink)\n6. (pick_up, A)\nObject A should be clean after executing these actions.\n###\nThe plan should 1) not contain any if statements 2) contain only the available actions 3) resemble the format of the initial plan.\n",
+            "user": "Task: boil water\nInitial plan:\n1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)\nFailure reason: At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to properly distinguish between the pot and the pan during its actions leading up to that moment, particularly since it repeatedly observed the pot as empty and clean without successfully picking it up.\nCurrent state: fourth stove burner (turned on), second stove burner (turned off), sink, third stove burner (turned off), pot (empty and clean), first stove burner (turned off), faucet (turned off). pot is on top of third countertop. pan is on top of fourth stove burner. nothing is inside robot gripper.\nSuccess state: a pot is filled with water, the pot is on top of a stove burner that is turned on.\nCorrection plan:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.5,
+            "presence_penalty": 0.3
+        },
+        "response": "1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)"
+    },
+    "20250814-151346": {
+        "prompt": {
+            "system": "You are expected to provide explanation for a robot failure. You are given the robot actions and observations so far. Briefly explain the failure in 1-2 sentence. Mention relevant time steps if possible.",
+            "user": "The robot task is to boil water. At 00:24, a failure was identified.\n\n[Robot actions and observations before 00:24]\n00:01. Action: Move to pot. Visual observation: nothing is inside robot gripper.\n00:09. Action: Move to pot. Visual observation: faucet (turned off), sink. nothing is inside robot gripper.\n00:17. Action: Move to pot. Visual observation: pot (empty and clean), faucet (turned off), sink. pot is on top of third countertop. nothing is inside robot gripper.\n00:19. Action: Move to pot. Visual observation: pot (empty and clean), faucet (turned off), sink, first stove burner (turned off). pot is on top of third countertop. nothing is inside robot gripper.\n00:21. Action: Move to pot. Visual observation: nothing is inside robot gripper.\n\n[Observation at the end of 00:24]\nAction: Pick up pot. Visual observation: pan is inside robot gripper.\n\nQ: Infer from [Robot actions and observations before 00:24] or [Observation at the end of 00:24], briefly explain what happened at 00:24 and what caused the failure.\nA:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0
+        },
+        "response": "At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to accurately assess the contents of its environment, as it repeatedly observed the pot as empty and clean without successfully picking it up prior to this action."
+    },
+    "20250814-151348": {
+        "prompt": {
+            "system": "Provide a plan with the available actions for the robot to recover from the failure and finish the task.\nAvailable actions: pick up, put in some container, put on some receptacle, open (e.g. fridge), close, toggle on (e.g. faucet), toggle off, slice object, crack object (e.g. egg), pour (liquid) from A to B.\nThe robot can only hold one object in its gripper, in other words, if there's object in the robot gripper, it can no longer pick up another object.\n###\nTo clean a dirty object A, the plan is\n1. (pick_up, A)\n2. (put_in, A, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pour, A, sink)\n6. (pick_up, A)\nObject A should be clean after executing these actions.\n###\nThe plan should 1) not contain any if statements 2) contain only the available actions 3) resemble the format of the initial plan.\n",
+            "user": "Task: boil water\nInitial plan:\n1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)\nFailure reason: At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to accurately assess the contents of its environment, as it repeatedly observed the pot as empty and clean without successfully picking it up prior to this action.\nCurrent state: fourth stove burner (turned on), second stove burner (turned off), sink, third stove burner (turned off), pot (empty and clean), first stove burner (turned off), faucet (turned off). pot is on top of third countertop. pan is on top of fourth stove burner. nothing is inside robot gripper.\nSuccess state: a pot is filled with water, the pot is on top of a stove burner that is turned on.\nCorrection plan:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.5,
+            "presence_penalty": 0.3
+        },
+        "response": "1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)"
+    },
+    "20250814-151600": {
+        "prompt": {
+            "system": "You are expected to provide explanation for a robot failure. You are given the robot actions and observations so far. Briefly explain the failure in 1-2 sentence. Mention relevant time steps if possible.",
+            "user": "The robot task is to boil water. At 00:24, a failure was identified.\n\n[Robot actions and observations before 00:24]\n00:01. Action: Move to pot. Visual observation: nothing is inside robot gripper.\n00:09. Action: Move to pot. Visual observation: faucet (turned off), sink. nothing is inside robot gripper.\n00:17. Action: Move to pot. Visual observation: pot (empty and clean), faucet (turned off), sink. pot is on top of third countertop. nothing is inside robot gripper.\n00:19. Action: Move to pot. Visual observation: pot (empty and clean), faucet (turned off), sink, first stove burner (turned off). pot is on top of third countertop. nothing is inside robot gripper.\n00:21. Action: Move to pot. Visual observation: nothing is inside robot gripper.\n\n[Observation at the end of 00:24]\nAction: Pick up pot. Visual observation: pan is inside robot gripper.\n\nQ: Infer from [Robot actions and observations before 00:24] or [Observation at the end of 00:24], briefly explain what happened at 00:24 and what caused the failure.\nA:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0
+        },
+        "response": "At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to accurately assess the contents of its environment or a misalignment in its action sequence, as it repeatedly observed the pot but failed to grasp it correctly."
+    },
+    "20250814-151606": {
+        "prompt": {
+            "system": "Provide a plan with the available actions for the robot to recover from the failure and finish the task.\nAvailable actions: pick up, put in some container, put on some receptacle, open (e.g. fridge), close, toggle on (e.g. faucet), toggle off, slice object, crack object (e.g. egg), pour (liquid) from A to B.\nThe robot can only hold one object in its gripper, in other words, if there's object in the robot gripper, it can no longer pick up another object.\n###\nTo clean a dirty object A, the plan is\n1. (pick_up, A)\n2. (put_in, A, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pour, A, sink)\n6. (pick_up, A)\nObject A should be clean after executing these actions.\n###\nThe plan should 1) not contain any if statements 2) contain only the available actions 3) resemble the format of the initial plan.\n",
+            "user": "Task: boil water\nInitial plan:\n1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)\nFailure reason: At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to accurately assess the contents of its environment or a misalignment in its action sequence, as it repeatedly observed the pot but failed to grasp it correctly.\nCurrent state: fourth stove burner (turned on), second stove burner (turned off), sink, third stove burner (turned off), pot (empty and clean), first stove burner (turned off), faucet (turned off). pot is on top of third countertop. pan is on top of fourth stove burner. nothing is inside robot gripper.\nSuccess state: a pot is filled with water, the pot is on top of a stove burner that is turned on.\nCorrection plan:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.5,
+            "presence_penalty": 0.3
+        },
+        "response": "1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)"
+    },
+    "20250814-152243": {
+        "prompt": {
+            "system": "You are expected to provide explanation for a robot failure. You are given the robot actions and observations so far. Briefly explain the failure in 1-2 sentence. Mention relevant time steps if possible.",
+            "user": "The robot task is to boil water. At 00:24, a failure was identified.\n\n[Robot actions and observations before 00:24]\n00:01. Action: Move to pot. Visual observation: nothing is inside robot gripper.\n00:09. Action: Move to pot. Visual observation: faucet (turned off), sink. nothing is inside robot gripper.\n00:17. Action: Move to pot. Visual observation: pot (empty and clean), faucet (turned off), sink. pot is on top of third countertop. nothing is inside robot gripper.\n00:19. Action: Move to pot. Visual observation: pot (empty and clean), faucet (turned off), sink, first stove burner (turned off). pot is on top of third countertop. nothing is inside robot gripper.\n00:21. Action: Move to pot. Visual observation: nothing is inside robot gripper.\n\n[Observation at the end of 00:24]\nAction: Pick up pot. Visual observation: pan is inside robot gripper.\n\nQ: Infer from [Robot actions and observations before 00:24] or [Observation at the end of 00:24], briefly explain what happened at 00:24 and what caused the failure.\nA:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0
+        },
+        "response": "At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to properly distinguish between the pot and the pan during its actions leading up to that moment, particularly since it repeatedly observed the pot as empty and clean without successfully picking it up."
+    },
+    "20250814-152246": {
+        "prompt": {
+            "system": "Provide a plan with the available actions for the robot to recover from the failure and finish the task.\nAvailable actions: pick up, put in some container, put on some receptacle, open (e.g. fridge), close, toggle on (e.g. faucet), toggle off, slice object, crack object (e.g. egg), pour (liquid) from A to B.\nThe robot can only hold one object in its gripper, in other words, if there's object in the robot gripper, it can no longer pick up another object.\n###\nTo clean a dirty object A, the plan is\n1. (pick_up, A)\n2. (put_in, A, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pour, A, sink)\n6. (pick_up, A)\nObject A should be clean after executing these actions.\n###\nThe plan should 1) not contain any if statements 2) contain only the available actions 3) resemble the format of the initial plan.\n",
+            "user": "Task: boil water\nInitial plan:\n1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)\nFailure reason: At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to properly distinguish between the pot and the pan during its actions leading up to that moment, particularly since it repeatedly observed the pot as empty and clean without successfully picking it up.\nCurrent state: fourth stove burner (turned on), second stove burner (turned off), sink, third stove burner (turned off), pot (empty and clean), first stove burner (turned off), faucet (turned off). pot is on top of third countertop. pan is on top of fourth stove burner. nothing is inside robot gripper.\nSuccess state: a pot is filled with water, the pot is on top of a stove burner that is turned on.\nCorrection plan:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.5,
+            "presence_penalty": 0.3
+        },
+        "response": "1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)"
+    },
+    "20250814-163121": {
+        "prompt": {
+            "system": "You are expected to provide explanation for a robot failure. You are given the robot actions and observations so far. Briefly explain the failure in 1-2 sentence. Mention relevant time steps if possible.",
+            "user": "The robot task is to boil water. At 00:24, a failure was identified.\n\n[Robot actions and observations before 00:24]\n00:01. Action: Move to pot. Visual observation: nothing is inside robot gripper.\n00:09. Action: Move to pot. Visual observation: faucet (turned off), sink. nothing is inside robot gripper.\n00:17. Action: Move to pot. Visual observation: pot (empty and clean), faucet (turned off), sink. pot is on top of third countertop. nothing is inside robot gripper.\n00:19. Action: Move to pot. Visual observation: pot (empty and clean), faucet (turned off), sink, first stove burner (turned off). pot is on top of third countertop. nothing is inside robot gripper.\n00:21. Action: Move to pot. Visual observation: nothing is inside robot gripper.\n\n[Observation at the end of 00:24]\nAction: Pick up pot. Visual observation: pan is inside robot gripper.\n\nQ: Infer from [Robot actions and observations before 00:24] or [Observation at the end of 00:24], briefly explain what happened at 00:24 and what caused the failure.\nA:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0
+        },
+        "response": "At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to accurately assess the contents of its environment or a misalignment in its action sequence, as it repeatedly observed the pot but failed to grasp it correctly."
+    },
+    "20250814-163124": {
+        "prompt": {
+            "system": "Provide a plan with the available actions for the robot to recover from the failure and finish the task.\nAvailable actions: pick up, put in some container, put on some receptacle, open (e.g. fridge), close, toggle on (e.g. faucet), toggle off, slice object, crack object (e.g. egg), pour (liquid) from A to B.\nThe robot can only hold one object in its gripper, in other words, if there's object in the robot gripper, it can no longer pick up another object.\n###\nTo clean a dirty object A, the plan is\n1. (pick_up, A)\n2. (put_in, A, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pour, A, sink)\n6. (pick_up, A)\nObject A should be clean after executing these actions.\n###\nThe plan should 1) not contain any if statements 2) contain only the available actions 3) resemble the format of the initial plan.\n",
+            "user": "Task: boil water\nInitial plan:\n1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)\nFailure reason: At 00:24, the robot attempted to pick up the pot but instead ended up with a pan in its gripper, indicating a failure in correctly identifying and manipulating the intended object. This confusion likely stemmed from the robot's inability to accurately assess the contents of its environment or a misalignment in its action sequence, as it repeatedly observed the pot but failed to grasp it correctly.\nCurrent state: fourth stove burner (turned on), second stove burner (turned off), sink, third stove burner (turned off), pot (empty and clean), first stove burner (turned off), faucet (turned off). pot is on top of third countertop. pan is on top of fourth stove burner. nothing is inside robot gripper.\nSuccess state: a pot is filled with water, the pot is on top of a stove burner that is turned on.\nCorrection plan:"
+        },
+        "sampling_params": {
+            "max_tokens": 200,
+            "temperature": 0.0,
+            "top_p": 1,
+            "frequency_penalty": 0.5,
+            "presence_penalty": 0.3
+        },
+        "response": "1. (pick_up, pot)\n2. (put_in, pot, sink)\n3. (toggle_on, faucet)\n4. (toggle_off, faucet)\n5. (pick_up, pot)\n6. (put_on, pot, fourth stove burner)\n7. (toggle_on, fourth stove burner)"
+    }
+}

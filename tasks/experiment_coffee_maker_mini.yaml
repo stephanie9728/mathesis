@@ -1,0 +1,64 @@
+meta:
+  study_name: "mini-coffee-no-cup"
+  explanation_timing: "immediate"         # "none" | "immediate" | "delayed"
+  llm_model: "gpt-4o-mini"
+
+paths:
+  video_root: "./camera_demo_coffee"      # 改成你的录制目录
+
+# 物体尽量简单，便于 CLIP 识别。coffee machine 也常被识别为 "coffee maker"。
+objects:
+  - coffee_machine
+  - coffee_maker
+  - cup
+  - mug
+  - table
+  - person
+
+task:
+  id: "T2-coffee-no-cup"
+  name: "咖啡机出液但没有放杯子"
+  goal: "在咖啡机出液口下方放好杯子，再出液；若杯子未就位则应立刻纠正。"
+  steps:
+    - "把杯子放到咖啡机出液口的正下方"
+    - "启动咖啡机"
+    - "等待出液完成"
+    - "将杯子移至桌面右侧备用"
+
+checks:
+  require:
+    - {type: node, label: coffee_machine, ge: 1, message: "应检测到咖啡机/coffee machine"}
+    - {type: node, label: cup,            ge: 1, message: "应检测到杯子"}
+    # 成功行为：杯子应当与咖啡机保持邻近若干帧（粗略代表“在出液口下方”）
+    - {type: edge, s: cup, r: near, o: coffee_machine, min_count: 3, message: "杯子应放在咖啡机下方附近"}
+  forbid:
+    # 你也可以禁止“人总是远离咖啡机”的情况（可选）
+    # - {type: edge, s: person, r: near, o: coffee_machine, min_count: 0, message: "应靠近咖啡机"}
+
+failures:
+  # F1：即时错误——人在咖啡机附近时，杯子不在咖啡机附近（疑似空倒）
+  - id: F1-coffee-spill-no-cup
+    when: immediate
+    condition:
+      all:
+        - {type: edge, s: person, r: near, o: coffee_machine, min_count: 3}    # 正在操作咖啡机
+      none:
+        - {type: edge, s: cup,    r: near, o: coffee_machine, min_count: 2}    # 杯子没有就位
+        - {type: edge, s: mug,    r: near, o: coffee_machine, min_count: 2}    # mug 也算杯
+    explain: "检测到你在操作咖啡机，但出液口下方没有杯子，可能会造成咖啡白倒（溢洒）。"
+    correction_plan:
+      - "先暂停出液，或等待停止。"
+      - "把杯子/马克杯移动到出液口正下方，靠近咖啡机前沿。"
+      - "确认杯子稳定且居中，再重新开始出液。"
+      - "如有溢出，请擦拭桌面，保持干燥避免打滑。"
+
+  # F2：任务收尾检查——如果最终仍未出现“杯子靠近咖啡机”，给出延迟解释和纠正建议
+  - id: F2-missing-final-placement
+    when: delayed
+    condition:
+      none:
+        - {type: edge, s: cup, r: near, o: coffee_machine, min_count: 2}
+        - {type: edge, s: mug, r: near, o: coffee_machine, min_count: 2}
+    explain: "任务结束时未检测到杯子位于咖啡机下方附近。"
+    correction_plan:
+      - "请将杯子放置到出液口正下方再开始出液。"

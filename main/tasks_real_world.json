@@ -1,0 +1,590 @@
+{
+    "Task 1": {
+        "task_idx": 8,
+        "name": "put apple in bowl",
+        "general_folder_name": "putAppleBowl1",
+        "gt_failure_reason": "Apple is placed on top of the bowl instead of inside the bowl due to the bowl being upside down.",
+        "gt_failure_step": ["01:00", "01:09"],
+        "object_list": [
+            "red apple",
+            "dark blue bowl without object on top"
+        ],
+        "actions": [
+            "Pick up apple",
+            "Put apple inside bowl"
+        ],
+        "success_condition": "apple is inside bowl."
+    },
+    "Task 2": {
+        "task_idx": 8,
+        "name": "put apple in bowl",
+        "general_folder_name": "putAppleBowl2",
+        "gt_failure_reason": "Apple was dropped from robot gripper when executing the action 'put apple in bowl'.",
+        "gt_failure_step": "01:03",
+        "object_list": [
+            "red apple",
+            "dark blue bowl"
+        ],
+        "actions": [
+            "Pick up apple",
+            "Put apple inside bowl"
+        ],
+        "success_condition": "apple is inside bowl."
+    },
+    "Task 3": {
+        "task_idx": 8,
+        "name": "put apple in bowl",
+        "general_folder_name": "putAppleBowl3",
+        "gt_failure_reason": "The robot cannot put the apple inside the bowl because there's a knife on top of the bowl, blocking the space.",
+        "gt_failure_step": "01:06",
+        "object_list": [
+            "knife with blue handle",
+            "red apple",
+            "dark blue bowl"
+        ],
+        "actions": [
+            "Pick up apple",
+            "Put apple inside bowl"
+        ],
+        "success_condition": "apple is inside bowl."
+    },
+    "Task 4": {
+        "task_idx": 1,
+        "name": "boil water in a pot",
+        "general_folder_name": "boilWater1",
+        "gt_failure_reason": "A bowl is put on top of the stove burner instead of a pot.",
+        "gt_failure_step": ["01:58", "02:22"],
+        "object_list": ["steel pot", "dark blue bowl", "faucet", "sink with a white color", "stove burner"],
+        "actions": [
+            "Pick up pot",
+            "Put pot in sink",
+            "Toggle on faucet",
+            "Ignore",
+            "Toggle off faucet",
+            "Pick up bowl",
+            "Put bowl on stove burner",
+            "Toggle on stove burner",
+            "Terminate"
+        ],
+        "success_condition": "a pot is filled with water, the pot is on top of a stove burner that is turned on."
+    },
+    "Task 5": {
+        "task_idx": 1,
+        "name": "boil water in a pot",
+        "general_folder_name": "boilWater2",
+        "gt_failure_reason": "The robot never toggled on and off the faucet to fill the pot with water.", 
+        "gt_failure_step": ["01:00", "01:41"],
+        "object_list": ["steel pot", "faucet", "sink with a white color", "stove burner"],
+        "actions": [
+            "Pick up pot",
+            "Put pot in sink",
+            "Pick up pot",
+            "Put pot on stove burner",
+            "Toggle on stove burner",
+            "Terminate"
+        ],
+        "success_condition": "a pot is filled with water, the pot is on top of a stove burner that is turned on."
+    },
+    "Task 6": {
+        "task_idx": 1,
+        "name": "boil water in a pot",
+        "general_folder_name": "boilWater3",
+        "gt_failure_reason": "All stove burners are already occupied (by pan and red kettle), as a result, the pot cannot be put on stove burner.",
+        "gt_failure_step": "03:08",
+        "object_list": ["steel pot", "faucet", "sink with a white color", "stove burner with black stove knobs", "red kettle", "pan"],
+        "actions": [
+            "Pick up pot",
+            "Put pot in sink",
+            "Toggle on faucet",
+            "Ignore",
+            "Toggle off faucet",
+            "Pick up pot",
+            "Put pot on stove burner",
+            "Toggle on stove burner",
+            "Terminate"
+        ],
+        "success_condition": "a pot is filled with water, the pot is on top of a stove burner that is turned on."
+    },
+    "Task 7": {
+        "task_idx": 1,
+        "name": "boil water in a pot",
+        "general_folder_name": "boilWater4",
+        "gt_failure_reason": "The robot accidentally dropped the pot when moving to stove burner.",
+        "gt_failure_step": "02:43",
+        "object_list": ["steel pot", "faucet", "sink with a white color", "stove burner"],
+        "actions": [
+            "Pick up pot",
+            "Put pot in sink",
+            "Toggle on faucet",
+            "Ignore",
+            "Toggle off faucet",
+            "Pick up pot",
+            "Put pot on stove burner",
+            "Toggle on stove burner",
+            "Terminate"
+        ],
+        "success_condition": "a pot is filled with water, the pot is on top of a stove burner that is turned on."
+    },
+    "Task 8": {
+        "task_idx": 9,
+        "name": "cut carrot",
+        "general_folder_name": "cutCarrot1",
+        "gt_failure_reason": "The robot failed to slice the carrot because knife orientation is wrong.",
+        "gt_failure_step": "01:13",
+        "object_list": [
+            "orange carrot",
+            "white knife with blue handle"
+        ],
+        "actions": [
+            "Pick up knife",
+            "Slice carrot",
+            "Terminate"
+        ],
+        "success_condition": "carrot is sliced."
+    },
+    "Task 9": {
+        "task_idx": 9,
+        "name": "cut carrot",
+        "general_folder_name": "cutCarrot2",
+        "gt_failure_reason": "The robot accidentally dropped one carrot slice to floor when slicing.",
+        "gt_failure_step": "01:11",
+        "object_list": [
+            "orange carrot",
+            "white knife with blue handle"
+        ],
+        "actions": [
+            "Pick up knife",
+            "Slice carrot",
+            "Terminate"
+        ],
+        "success_condition": "carrot is sliced."
+    },
+    "Task 10": {
+        "task_idx": 7,
+        "name": "put pear in drawer",
+        "general_folder_name": "putPearDrawer1",
+        "gt_failure_reason": "The robot never opened the drawer before trying to put pear in drawer.",
+        "gt_failure_step": "01:33",
+        "object_list": [
+            "yellow drawer",
+            "green pear"
+        ],
+        "actions": [
+            "Pick up pear",
+            "Put pear in drawer"
+        ],
+        "success_condition": "pear is inside drawer and drawer is closed."
+    },
+    "Task 11": {
+        "task_idx": 7,
+        "name": "put pear in drawer",
+        "general_folder_name": "putPearDrawer2",
+        "gt_failure_reason": "The robot failed to close the drawer because the drawer is too full.",
+        "gt_failure_step": "02:31",
+        "object_list": [
+            "yellow storage box",
+            "green pear",
+            "carrots",
+            "purple beets",
+            "jell-o"
+        ],
+        "actions": [
+            "Open drawer",
+            "Pick up pear",
+            "Put pear in drawer",
+            "Close drawer"
+        ],
+        "success_condition": "pear is inside drawer and drawer is closed."
+    },
+    "Task 12": {
+        "task_idx": 7,
+        "name": "put pear in drawer",
+        "general_folder_name": "putPearDrawer3",
+        "gt_failure_reason": "The robot gripper is occupied by the pear when it attempted to open drawer, as a result, the drawer cannot be opened. The robot should open drawer first before picking up the pear.",
+        "gt_failure_step": ["00:44", "01:10"],
+        "object_list": [
+            "yellow storage box",
+            "green pear"
+        ],
+        "actions": [
+            "Pick up pear",
+            "Open drawer",
+            "Put pear in drawer",
+            "Close drawer"
+        ],
+        "success_condition": "pear is inside drawer and drawer is closed."
+    },
+    "Task 13": {
+        "task_idx": 5,
+        "name": "cook carrot",
+        "general_folder_name": "sauteeCarrot1",
+        "gt_failure_reason": "The robot has mistakenly picked up a spoon instead of knife to slice carrot.",
+        "gt_failure_step": "01:02",
+        "object_list": ["carrot", "knife with blue handle", "spoon", "table", "steel saucepan", "stove burner"],
+        "actions": [
+            "Pick up knife",
+            "Slice carrot",
+            "Put knife on table",
+            "Pick up carrot slice",
+            "Put carrot slice in saucepan",
+            "Toggle on stove burner",
+            "Terminate"
+        ],
+        "success_condition": "a sliced carrot is inside a pan, the pan is on top of a stove burner that is turned on."
+    },
+    "Task 14": {
+        "task_idx": 5,
+        "name": "cook carrot",
+        "general_folder_name": "sauteeCarrot2",
+        "gt_failure_reason": "The carrot is put on top of the stove burner instead of on the saucepan.",
+        "gt_failure_step": "04:22",
+        "object_list": ["carrot", "knife with blue handle", "table", "steel saucepan", "stove burner"],
+        "actions": [
+            "Pick up knife",
+            "Skip",
+            "Skip",
+            "Slice carrot",
+            "Put knife on table",
+            "Pick up carrot slice",
+            "Put carrot slice in saucepan",
+            "Toggle on stove burner",
+            "Terminate"
+        ],
+        "success_condition": "a sliced carrot is inside a pan, the pan is on top of a stove burner that is turned on."
+    },
+    "Task 15": {
+        "task_idx": 5,
+        "name": "cook carrot",
+        "general_folder_name": "sauteeCarrot3",
+        "gt_failure_reason": "The robot accidentally dropped the knife when trying to slice the carrot.",
+        "gt_failure_step": "00:55",
+        "object_list": ["carrot", "knife with blue handle", "spoon", "table on the left of sink", "steel saucepan", "stove burner"],
+        "actions": [
+            "Pick up knife",
+            "Slice carrot",
+            "Put knife on table",
+            "Pick up carrot slice",
+            "Put carrot slice in saucepan",
+            "Toggle on stove burner",
+            "Terminate"
+        ],
+        "success_condition": "a sliced carrot is inside a pan, the pan is on top of a stove burner that is turned on."
+    },
+    "Task 16": {
+        "task_idx": 5,
+        "name": "cook carrot",
+        "general_folder_name": "sauteeCarrot4",
+        "gt_failure_reason": "The robot never toggled on the stove burner, as a result, the carrot cannot be cooked.",
+        "gt_failure_step": "03:40",
+        "object_list": ["carrot", "knife with blue handle", "table", "steel saucepan", "stove burner"],
+        "actions": [
+            "Pick up knife",
+            "Skip",
+            "Skip",
+            "Slice carrot",
+            "Put knife on table",
+            "Pick up carrot slice",
+            "Put carrot slice in saucepan",
+            "Terminate"
+        ],
+        "success_condition": "a sliced carrot is inside a pan, the pan is on top of a stove burner that is turned on."
+    },
+    "Task 17": {
+        "task_idx": 6,
+        "name": "secure objects",
+        "general_folder_name": "secureObjects1",
+        "gt_failure_reason": "The knife should be placed inside the drawer and pear in fridge. The current placements are flipped.",
+        "gt_failure_step": ["02:15", "05:00"],
+        "object_list": [
+            "white knife with green handle",
+            "green pear",
+            "black fridge with gray door and white interior",
+            "yellow storage box",
+            "faucet behind the sink"
+        ],
+        "distractor_list": [
+            "faucet behind the sink"
+        ],
+        "actions": [
+            "Pick up knife",
+            "Put knife in fridge",
+            "Close fridge",
+            "Pick up pear",
+            "Put pear near drawer",
+            "Open drawer",
+            "Pick up pear",
+            "Put pear in drawer",
+            "Close drawer"
+        ],
+        "success_condition": "pear and knife are in their most suitable container respectively."
+    },
+    "Task 18": {
+        "task_idx": 10,
+        "name": "put all visible fruits in bowl",
+        "general_folder_name": "putFruitsBowl1",
+        "gt_failure_reason": "The robot should not put carrot in the bowl since it is not a fruit.",
+        "gt_failure_step": ["02:56", "03:17"],
+        "object_list": [
+            "carrot",
+            "strawberry with red body and green top",
+            "pear",
+            "pear next to strawberry",
+            "white bowl"
+        ],
+        "actions": [
+            "Pick up strawberry",
+            "Put strawberry in bowl",
+            "Pick up pear",
+            "Put pear in bowl",
+            "Pick up carrot",
+            "Put carrot in bowl"
+        ],
+        "success_condition": "all fruits are in the bowl."
+    },
+    "Task 19": {
+        "task_idx": 10,
+        "name": "put all fruits in bowl",
+        "general_folder_name": "putFruitsBowl2",
+        "gt_failure_reason": "The robot did not put strawberry in the bowl since it is a fruit.",
+        "gt_failure_step": "02:01",
+        "object_list": [
+            "carrot",
+            "strawberry",
+            "green pear",
+            "red apple",
+            "bowl"
+        ],
+        "actions": [
+            "Pick up apple",
+            "Put apple in bowl",
+            "Pick up pear",
+            "Put pear in bowl"
+        ],
+        "success_condition": "all fruits are in the bowl."
+    },
+    "Task 20": {
+        "task_idx": 3,
+        "name": "make coffee",
+        "general_folder_name": "makeCoffee1",
+        "gt_failure_reason": "The robot failed to toggle on coffee machine.",
+        "gt_failure_step": "01:57",
+        "object_list": [
+            "coffee machine",
+            "purple cup",
+            "table on the left of sink"
+        ],
+        "actions": [
+            "Pick up cup",
+            "Put cup in coffee machine",
+            "Toggle on coffee machine",
+            "Pick up cup",
+            "Put cup on table"
+        ],
+        "success_condition": "a cup filled with coffee is on table."
+    },
+    "Task 21": {
+        "task_idx": 3,
+        "name": "make coffee",
+        "general_folder_name": "makeCoffee2",
+        "gt_failure_reason": "A mug is already inside the coffee machine, as a result, the cup cannot be put inside.",
+        "gt_failure_step": "01:11",
+        "object_list": [
+            "coffee machine",
+            "purple cup",
+            "blue cup with handle",
+            "table on the left of sink"
+        ],
+        "actions": [
+            "Pick up cup",
+            "Put cup in coffee machine",
+            "Toggle on coffee machine",
+            "Pick up cup",
+            "Put cup on table"
+        ],
+        "success_condition": "a cup filled with coffee is on table."
+    },
+    "Task 22": {
+        "task_idx": 12,
+        "name": "make coffee",
+        "general_folder_name": "makeCoffee3",
+        "gt_failure_reason": "The robot mistakenly picked up the pink cup instead of the blue cup after filling blue cup with coffee.",
+        "gt_failure_step": "02:04",
+        "object_list": [
+            "white coffee machine",
+            "pink cup",
+            "table on the left of sink",
+            "blue cup"
+        ],
+        "actions": [
+            "Toggle on coffee machine",
+            "Pick up cup",
+            "Put cup on table"
+        ],
+        "success_condition": "a blue cup filled with coffee is on table."
+    },
+    "Task 23": {
+        "task_idx": 11,
+        "name": "pre-heat pot",
+        "general_folder_name": "heatPot1",
+        "gt_failure_reason": "The robot cannot pick up the pot due to a cutting board blocking the pot.",
+        "gt_failure_step": "00:23",
+        "object_list": [
+            "stove burner",
+            "gray pot",
+            "cutting board"
+        ],
+        "actions": [
+            "Pick up pot",
+            "Put pot on stove burner",
+            "Toggle on stove burner"
+        ],
+        "success_condition": "a pot is on top of a stove burner that is toggled on."
+    },
+    "Task 24": {
+        "task_idx": 11,
+        "name": "pre-heat pot",
+        "general_folder_name": "heatPot2",
+        "gt_failure_reason": "The robot failed to toggle on stove burner.",
+        "gt_failure_step": "01:31",
+        "object_list": [
+            "stove burner",
+            "gray pot",
+            "sink"
+        ],
+        "actions": [
+            "Pick up pot",
+            "Put pot on stove burner",
+            "Toggle on stove burner"
+        ],
+        "success_condition": "a pot is on top of a stove burner that is toggled on."
+    },
+    "Task 25": {
+        "task_idx": 2,
+        "name": "store apple in a bowl and put in a fridge",
+        "general_folder_name": "appleInFridge1",
+        "gt_failure_reason": "The robot put the dark blue bowl (empty) instead of the white bowl with apple inside the fridge.",
+        "gt_failure_step": "02:57",
+        "object_list": ["white bowl", "dark blue bowl", "table", "red apple", "fridge"],
+        "actions": [
+            "Pick up apple",
+            "Put apple in bowl",
+            "Open fridge",
+            "Pick up bowl",
+            "Put bowl in fridge",
+            "Close fridge",
+            "Terminate"
+        ],
+        "success_condition": "a bowl with an apple inside is put in fridge."
+    },
+    "Task 26": {
+        "task_idx": 2,
+        "name": "store apple in a bowl and put in a fridge",
+        "general_folder_name": "appleInFridge2",
+        "gt_failure_reason": "The robot put the bowl with apple on top of the fridge instead of inside it.",
+        "gt_failure_step": "04:13",
+        "object_list": ["white bowl", "table", "red apple", "fridge"],
+        "actions": [
+            "Pick up apple",
+            "Put apple in bowl",
+            "Open fridge",
+            "Pick up bowl",
+            "Put bowl in fridge",
+            "Close fridge",
+            "Terminate"
+        ],
+        "success_condition": "a bowl with an apple inside is put in fridge."
+    },
+    "Task 27": {
+        "task_idx": 2,
+        "name": "store apple in a bowl and put in a fridge",
+        "general_folder_name": "appleInFridge3",
+        "gt_failure_reason": "The robot did not open the firdge before attempting to put the bowl inside.",
+        "gt_failure_step": "02:41",
+        "object_list": ["dark blue bowl", "table", "red apple", "black fridge with grey door"],
+        "actions": [
+            "Pick up apple",
+            "Put apple in bowl",
+            "Pick up bowl",
+            "Put bowl in fridge",
+            "Open fridge",
+            "Close fridge",
+            "Terminate"
+        ],
+        "success_condition": "a bowl with an apple inside is put in fridge."
+    },
+    "Task 28": {
+        "task_idx": 2,
+        "name": "store apple in a bowl and put in a fridge",
+        "general_folder_name": "appleInFridge4",
+        "gt_failure_reason": "The robot never closed the fridge door.",
+        "gt_failure_step": "03:47",
+        "object_list": ["dark blue bowl", "table", "red apple", "black fridge with grey door"],
+        "actions": [
+            "Pick up apple",
+            "Put apple in bowl",
+            "Open fridge",
+            "Pick up bowl",
+            "Put bowl in fridge",
+            "Terminate"
+        ],
+        "success_condition": "a bowl with an apple inside is put in a closed fridge."
+    },
+    "Task 29": {
+        "task_idx": 4,
+        "name": "serve a bowl of potato on table that was heated using a microwave",
+        "general_folder_name": "heatPotato1",
+        "gt_failure_reason": "The robot failed because it attempted to toggle on the microwave while the microwave door was still open.",
+        "gt_failure_step": ["04:24", "05:12"],
+        "object_list": ["microwave with a white casing", "dark blue bowl", "orange table", "potato"],
+        "actions": [
+            "Pick up potato",
+            "Put potato in bowl",
+            "Skip",
+            "Ignore",
+            "Open microwave",
+            "Pick up bowl",
+            "Put bowl in microwave",
+            "Toggle on microwave",
+            "Close microwave",
+            "Toggle off microwave",
+            "Skip",
+            "Ignore",
+            "Open microwave",
+            "Pick up bowl",
+            "Put bowl on table",
+            "Close microwave",
+            "Terminate"
+        ],
+        "success_condition": "a bowl of a heated potato is on the table."
+    },
+    "Task 30": {
+        "task_idx": 4,
+        "name": "serve a bowl of potato on table that was heated using a microwave",
+        "general_folder_name": "heatPotato2",
+        "gt_failure_reason": "The robot failed because it attempted to open the microwave door while it was still toggled on.",
+        "gt_failure_step": "01:48",
+        "object_list": ["microwave with a white casing", "dark blue bowl", "orange table", "potato"],
+        "actions": [
+            "Pick up potato",
+            "Put potato in bowl",
+            "Skip",
+            "Ignore",
+            "Toggle on microwave",
+            "Skip",
+            "Ignore",
+            "Open microwave",
+            "Pick up bowl",
+            "Put bowl in microwave",
+            "Close microwave",
+            "Skip",
+            "Ignore",
+            "Open microwave",
+            "Pick up bowl",
+            "Put bowl on table",
+            "Terminate",
+            "Close microwave",
+            "Terminate"
+        ],
+        "success_condition": "a bowl of a heated potato is on the table."
+    }
+}
