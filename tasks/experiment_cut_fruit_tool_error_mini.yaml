@@ -10,6 +10,11 @@ tools:
   candidates: ["knife", "fork", "spoon"]
   correct: "knife"
 
+paths:
+  # 这里写这个任务用到的视频目录（就是有 raw.mp4 的那个）
+  video_root: ./camera_demo_fruit
+
+
 llm:
   hint: >
     The robot is in a tabletop fruit-cutting scenario.

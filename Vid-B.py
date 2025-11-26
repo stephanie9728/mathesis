@@ -23,9 +23,9 @@ video_path = str(VIDEO_ROOT / "raw.mp4")
 assert (VIDEO_ROOT / "raw.mp4").exists(), f"找不到 {VIDEO_ROOT}/raw.mp4，请先合成视频"
 
 MAX_FRAMES       = 300
-FRAME_STRIDE     = 1
-GRID_SIZE        = 5            # 4~6 之间可调
-SCORE_THRESH     = 0.33
+FRAME_STRIDE     = 5
+GRID_SIZE        = 4            # 4~6 之间可调
+SCORE_THRESH     = 0.35
 NMS_IOU          = 0.5
 NEAR_K           = 0.25
 HOLD_MIN_FRAMES  = 2

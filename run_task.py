@@ -3,7 +3,8 @@
 import sys, subprocess, yaml
 from pathlib import Path
 
-py = sys.executable
+py = "/Users/stephaniezhang/miniconda3_x86/envs/thor-x86/bin/python"
+
 
 task_name     = sys.argv[1]          # e.g. cut_fruit_tool_error
 timing_cond   = sys.argv[2]          # "none" | "immediate" | "delayed"

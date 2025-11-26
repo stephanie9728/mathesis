@@ -1,0 +1,25 @@
+llm:
+  hint: 'The robot is in a tabletop fruit-cutting scenario. It is supposed to use
+    the small knife to cut the apple. In this experimental condition we are interested
+    in cases where the robot initially uses the wrong utensil (for example a fork
+    or a spoon) instead of the knife. Focus on clearly explaining that the tool choice
+    was incorrect, why that matters for safety and task success, and what the robot
+    will do to recover (put down the wrong tool, pick up the knife, and continue).
+
+    '
+meta:
+  error_type: wrong_tool
+  expected_tool: knife
+  explanation_timing: immediate
+  goal_en: Place the apple on the cutting board and cut it using the small knife.
+  participant_id: pilot
+  task_id: cut_fruit_tool_error
+  task_name: cut_fruit_tool_error
+paths:
+  video_root: ./camera_demo_fruit
+tools:
+  candidates:
+  - knife
+  - fork
+  - spoon
+  correct: knife
