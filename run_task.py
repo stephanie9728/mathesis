@@ -3,7 +3,7 @@
 import sys, subprocess, yaml
 from pathlib import Path
 
-py = "/Users/stephaniezhang/miniconda3_x86/envs/thor-x86/bin/python"
+py = sys.executable
 
 
 task_name     = sys.argv[1]          # e.g. cut_fruit_tool_error
@@ -28,5 +28,5 @@ print(f"✅ Video Root: {video_root}")
 
 subprocess.run([py, "Vid-B.py", str(video_root)], check=True)
 subprocess.run([py, "Vid-C.py", str(video_root)], check=True)
-subprocess.run([py, "Vid-D.py", str(video_root)], check=True)
-subprocess.run([py, "Vid-E.py", str(yaml_path_tmp), str(video_root)], check=True)
+subprocess.run([py, "Vid-D.py", str(yaml_path), str(video_root)], check=True)
+subprocess.run([py, "Vid-E.py", str(yaml_path), str(video_root)], check=True)
