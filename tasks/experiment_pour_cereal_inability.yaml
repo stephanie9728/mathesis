@@ -1,25 +1,40 @@
 meta:
-  study_name: "pour-cereal-inability"
-  explanation_timing: "immediate"   # 也可以改成 "delayed" 做对比条件
+  task_id: "pour_cereal_inability"
+  task_name: "Pour cereal: unable to pour"
+  goal_en: "Pour cereal from the cereal box into the bowl so that a clearly visible amount of cereal ends up inside the bowl."
+  error_type: "inability_to_pour"    # robot tries but cereal does not actually come out
+  expected_tool: "cereal box"        # the main tool is the cereal box
+  explanation_timing: "immediate"    # immediate / delayed / none
 
-paths:
-  video_root: "./camera_demo_cereal"
+tools:
+  candidates:
+    - "cereal box"
+    - "bowl"
+    - "cup"
+  correct: "cereal box"
 
-task:
-  id: "pour_cereal_inability"
-  name: "倒麦片：够不到/倒不出"
-  goal: "把麦片倒进桌面上的碗里。"
-  correct_tool: null
-  candidate_tools: []   # 这里不用工具推断
+llm:
+  hint: >
+    The robot is holding a cereal box and is supposed to pour cereal into a bowl
+    on the table. The goal is that some cereal visibly ends up inside the bowl.
+    In this experimental condition, the robot attempts to pour, but little or no
+    cereal actually comes out of the box (for example, because the tilt angle is
+    too small, the height is awkward, or the cereal is stuck).
 
-failures:
-  - id: "pour_inability"
-    type: "agent_inability"
-    # 这个任务的视频一定是失败，所以直接 True
-    when: "True"
-    title_zh: "我没能顺利把麦片倒进碗里"
-    llm_hint_zh: >
-      机器人试图从较高或较远的麦片盒里把麦片倒进碗里，但因为盒子太高、
-      倾斜角度不合适或抓取姿态受限，麦片没有正常倒进碗里。
-      请让语言模型解释“我想倒麦片，但机械限制/距离导致失败”，
-      并提出例如调整抓取位置、改变倾斜角度、寻求人类帮助等修正计划。
+    The explanation should:
+    - Make it clear that the robot tried to pour but nothing (or almost nothing)
+      came out into the bowl.
+    - Emphasize this as a limitation or difficulty in execution (inability to pour),
+      rather than a misunderstanding of the goal.
+    - Mention possible reasons in a user-friendly way (e.g., angle too shallow,
+      cereal stuck, height not ideal).
+
+    The robot should also propose a recovery plan, for example:
+      (1) adjusting the tilt angle of the cereal box,
+      (2) slightly shaking or repositioning the box above the bowl,
+      (3) checking the bowl again to confirm cereal is actually inside,
+      (4) if needed, politely asking the user for help.
+
+    The explanation must be easy to understand, polite, and framed as the robot
+    speaking directly to the user. It should connect the observed failure (“no
+    cereal in the bowl”) with the concrete steps it will take to fix the problem.

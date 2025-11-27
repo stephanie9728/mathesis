@@ -1,0 +1,36 @@
+meta:
+  task_id: "cut_fruit_tool_error"
+  task_name: "Cut fruit: wrong tool"
+  goal_en: "Place the apple on the cutting board and cut it using the small knife."
+  error_type: "wrong_tool"           # robot chooses an inappropriate tool to cut
+  expected_tool: "knife"             # the intended tool is the small knife
+  explanation_timing: "immediate"    # immediate / delayed / none
+
+tools:
+  candidates:
+    - "knife"
+    - "fork"
+    - "spoon"
+  correct: "knife"
+
+llm:
+  hint: >
+    The robot is performing a simple table-top task: it should place the apple on
+    the cutting board and cut it using the small knife. In this experimental
+    condition, the robot initially picks up the wrong tool (for example, a fork
+    or a spoon) instead of the knife.
+
+    When explaining the error, the robot should:
+    - Clearly state that it picked up the wrong tool for cutting the apple.
+    - Briefly mention why the chosen tool is not appropriate or safe for cutting.
+    - Refer back to the original goal (cutting the apple with the small knife).
+    - Propose a concrete recovery plan, such as:
+      (1) putting down the wrong tool safely,
+      (2) picking up the small knife instead,
+      (3) placing the apple on the cutting board,
+      (4) cutting the apple with the knife.
+
+    The explanation should be user-friendly, in plain English, and framed as the
+    robot talking directly to the user (e.g., “I first picked up the fork by
+    mistake…”). It should also briefly acknowledge the inconvenience and reassure
+    the user that it will correct its behavior.

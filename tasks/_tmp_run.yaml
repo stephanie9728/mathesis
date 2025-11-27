@@ -1,25 +1,24 @@
 llm:
-  hint: 'The robot is in a tabletop fruit-cutting scenario. It is supposed to use
-    the small knife to cut the apple. In this experimental condition we are interested
-    in cases where the robot initially uses the wrong utensil (for example a fork
-    or a spoon) instead of the knife. Focus on clearly explaining that the tool choice
-    was incorrect, why that matters for safety and task success, and what the robot
-    will do to recover (put down the wrong tool, pick up the knife, and continue).
+  hint: 'The robot sees a bowl and an apple in a tabletop scene from an eye-in-hand
+    or head-mounted camera. The intended outcome is that the apple should end up clearly
+    inside the bowl. In this experimental condition, the apple is actually behind
+    or partially occluded by the bowl, so the robot is uncertain whether the apple
+    is already in the bowl or exactly where it is.
+
+    The explanation should focus on expressing this perceptual uncertainty, clarifying
+    that the robot cannot fully see the apple, and proposing a clear recovery plan,
+    such as (1) moving slightly to get a better view, (2) re-checking whether the
+    apple is really inside the bowl, or (3) politely asking the user for help if needed.
 
     '
 meta:
-  error_type: wrong_tool
-  expected_tool: knife
+  error_type: uncertainty
+  expected_tool: null
   explanation_timing: immediate
-  goal_en: Place the apple on the cutting board and cut it using the small knife.
+  goal_en: Grasp the apple and place it clearly inside the bowl in front of the camera.
   participant_id: pilot
-  task_id: cut_fruit_tool_error
-  task_name: cut_fruit_tool_error
-paths:
-  video_root: ./camera_demo_fruit
+  task_id: grasp_apple_uncertainty
+  task_name: grasp_apple_uncertainty
 tools:
-  candidates:
-  - knife
-  - fork
-  - spoon
-  correct: knife
+  candidates: []
+  correct: null
