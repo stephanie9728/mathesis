@@ -1,486 +1,335 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-Vid-E (research version)
-------------------------
-- Reads:
-    - experiment YAML (tasks/experiment_xxx.yaml)
-    - scene graph (VIDEO_ROOT/yolo_scene_graph.json)  [optional, may be empty]
-    - relations timeline (VIDEO_ROOT/relations_timeline.json) [optional]
-- Uses:
-    - error_config.* in YAML (error_type, expected_tool, etc.)
-- Produces:
-    - VIDEO_ROOT/vid_e_explanation.txt    (LLM-facing explanation for user)
-    - VIDEO_ROOT/vid_e_runlog.json        (machine log for analysis)
 
-Error types supported:
-    - wrong_tool
-    - inability_to_pour
-    - object_occluded
-    - grasp_failure      (预留，将来你可以用在别的任务上)
+"""
+Vid-E: LLM-based error explanation (purely config driven)
+
+Usage:
+  python Vid-E.py tasks/experiment_grasp_apple_uncertainty.yaml /path/to/VIDEO_ROOT
+
+Assumptions:
+  - VIDEO_ROOT contains outputs from Vid-B:
+      yolo_nodes.json
+      yolo_scene_graph.json
+      relations_timeline.json
+  - YAML config has the structure:
+
+    meta:
+      task_id: "grasp_apple_uncertainty"
+      task_name: "Grasp apple: uncertainty about location"
+      goal_en: "Grasp the apple ..."
+      error_type: "uncertainty"      # or "wrong_tool" / "inability"
+      explanation_timing: "immediate"
+
+    tools:
+      candidates: []                 # optional
+      correct: null                  # optional
+
+    llm:
+      hint: >                        # long, task-specific hint
+        ...
+
+This script NO LONGER tries to auto-detect errors.
+If meta.error_type is one of {"uncertainty", "wrong_tool", "inability"},
+we *always* generate an error-aware explanation using the LLM.
 """
 
 import json
 import os
 import sys
 from pathlib import Path
-from datetime import datetime
+from typing import Dict, Any, List, Optional
 
 import yaml
+import openai  # 使用旧版 SDK 接口：openai.ChatCompletion.create
 
-# ----------------- LLM wrapper (reuse your existing LLMPrompter) -----------------
-try:
-    from LLM.prompt import LLMPrompter
-except Exception:
-    LLMPrompter = None
+# 默认模型名（在 YAML 的 llm.model 里可以覆盖）
+DEFAULT_MODEL = "gpt-4o-mini"
 
+# 从环境变量读取 API Key（推荐做法）
+openai.api_key = os.environ.get("OPENAI_API_KEY", "")
 
-def load_json_or_none(path: Path):
+# ============================================================
+# 1. 读 Vid-B 输出
+# ============================================================
+
+def load_json(path: Path, default):
     if not path.exists():
-        return None
+        return default
     try:
-        return json.loads(path.read_text())
-    except Exception:
-        return None
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"⚠️ Failed to load {path}: {e}")
+        return default
 
 
-def safe_get(dct, *keys, default=None):
-    cur = dct
-    for k in keys:
-        if not isinstance(cur, dict) or k not in cur:
-            return default
-        cur = cur[k]
-    return cur
+def summarize_nodes(nodes_json: Dict[str, Any], top_k: int = 6) -> str:
+    nodes = nodes_json.get("nodes", [])
+    if not isinstance(nodes, list) or not nodes:
+        return "I did not detect any specific objects in the scene graph."
+
+    nodes_sorted = sorted(
+        nodes,
+        key=lambda x: -x.get("count", 0)
+    )[:top_k]
+
+    lines = []
+    for n in nodes_sorted:
+        label = n.get("label", "object")
+        count = n.get("count", 0)
+        lines.append(f"- {label}: observed {count} times across frames.")
+    return "From the scene graph, I detected:\n" + "\n".join(lines)
 
 
-def summarize_timeline_for_debug(timeline, tool_list):
+def summarize_relations(rel_json: Any, max_frames: int = 5) -> str:
+    if not isinstance(rel_json, list) or not rel_json:
+        return "I did not infer any explicit spatial relations over time."
+
+    num_frames = len(rel_json)
+    sample_frames = rel_json[:max_frames]
+    frames_str = ", ".join(str(f.get("frame", i)) for i, f in enumerate(sample_frames))
+    return (
+        f"There is a relation timeline with {num_frames} frames "
+        f"(showing relations for frames: {frames_str}). "
+        "Currently no specific relations are listed, but this indicates how long the scene was observed."
+    )
+
+
+# ============================================================
+# 2. 构造 LLM 提示词
+# ============================================================
+
+def build_system_prompt(task_name: str, goal_en: str, error_type: str, hint: str) -> str:
+    return f"""
+You are a helpful, polite assistive kitchen robot speaking to a non-expert human user.
+
+Your goal is to naturally explain:
+- What you were trying to do;
+- What you currently see in the scene;
+- What went wrong;
+- Why this led to uncertainty or difficulty for you.
+
+Speak in the first person ("I").
+Use a calm, slightly detailed, and reassuring tone.
+It is OK if the explanation is a bit longer than a few sentences.
+Do NOT mention any technical system details, models, confidence scores, or probabilities.
+
+Task name: {task_name}
+Intended goal: {goal_en}
+Configured error type: {error_type}
+
+After your explanation, you MUST add a short recovery plan in the following format:
+
+Next steps:
+- bullet point
+- bullet point
+- bullet point (2–4 bullets total)
+
+The "Next steps" should describe what you will do next to improve the situation and how you will act more safely or carefully.
+
+Additional experiment-specific guidance:
+{hint}
+""".strip()
+
+
+
+
+def build_user_prompt(
+    nodes_summary: str,
+    relations_summary: str,
+    error_type: str,
+    expected_tool: Optional[str],
+    tools_section: Dict[str, Any],
+) -> str:
+    lines: List[str] = []
+
+    lines.append("Here is a summary of what I detected from the video scene:")
+    lines.append("")
+    lines.append(nodes_summary)
+    lines.append("")
+    lines.append(relations_summary)
+    lines.append("")
+    lines.append(f"The experiment config sets error_type = '{error_type}'.")
+
+    if expected_tool:
+        lines.append(f"The config suggests that the expected tool is: '{expected_tool}'.")
+
+    candidates = tools_section.get("candidates")
+    if isinstance(candidates, list) and candidates:
+        lines.append(f"Tool candidates mentioned in the config: {candidates}.")
+
+    lines.append("")
+    lines.append(
+        "Please now produce a single, user-facing explanation describing the error "
+        "condition in this specific run, in a way that would make sense to a non-expert user."
+    )
+
+    return "\n".join(lines)
+
+
+# ============================================================
+# 3. 调用 LLM（旧版 openai.ChatCompletion 接口）
+# ============================================================
+
+def call_llm(system_prompt: str, user_prompt: str, model: str = DEFAULT_MODEL) -> str:
     """
-    timeline: list of {"frame": int, "holding": [...], "near_apple": [...]}
-    Return:
-        - counts: {tool: count_of_frames_where_holding}
-        - inferred_tool: tool with max count (or None)
+    使用旧版 openai.ChatCompletion 接口。
+    需要环境变量 OPENAI_API_KEY 已设置，或者提前设置 openai.api_key。
     """
-    counts = {t: 0 for t in tool_list}
-    if not isinstance(timeline, list):
-        return counts, None
+    if not openai.api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY is not set. Please export it in your environment "
+            "or set openai.api_key manually."
+        )
 
-    for frame_ev in timeline:
-        holding = frame_ev.get("holding", [])
-        if not isinstance(holding, list):
-            continue
-        for t in tool_list:
-            if t in holding:
-                counts[t] += 1
-
-    inferred = None
-    max_cnt = 0
-    for t, c in counts.items():
-        if c > max_cnt:
-            max_cnt = c
-            inferred = t
-
-    if max_cnt == 0:
-        inferred = None
-    return counts, inferred
-
-
-def build_llm_prompter(cfg_llm: dict):
-    if LLMPrompter is None:
-        return None
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_APIKEY")
-    if not api_key:
-        print("⚠️  No OPENAI_API_KEY found in env; will fall back to rule-based text.")
-        return None
-    model = cfg_llm.get("model", "gpt-4o-mini")
-    return LLMPrompter(gpt_version=model, api_key=api_key)
-
-
-def build_wrong_tool_prompt(goal_en, context_en, expected, used, timing_mode):
-    when_text = {
-        "none": "You are NOT supposed to produce any explanation in this condition, "
-                "but for debugging we still simulate what you would say.",
-        "immediate": "You are explaining the error right after it happens, before or while you recover.",
-        "delayed": "You are explaining the error after you have already recovered and completed the task.",
-    }.get(timing_mode, "You are explaining the error around the time it happens.")
-
-    user = f"""
-Task goal:
-- {goal_en}
-
-Task context:
-- {context_en.strip() if context_en else ""}
-
-What happened:
-- The robot selected the WRONG TOOL for the task.
-- The expected correct tool was: "{expected}".
-- The tool that appears to have been used instead is: "{used if used else "an incorrect tool"}".
-
-Instructions:
-- Explain to a non-technical user what went wrong and why.
-- Be honest that you picked up the wrong tool.
-- Mention that this makes the task harder or unsafe.
-- Describe, step by step, how you will fix it and continue.
-- Be concise, friendly, and use 2–4 short paragraphs or bullet points.
-"""
-    sys = (
-        "You are a robot assistant reflecting on your own mistake in a user study. "
-        "Your explanation will be spoken to a human participant. "
-        f"{when_text} "
-        "Avoid technical terms like 'bounding boxes', 'scene graph', or 'classifier'. "
-        "Speak in plain English, in the first person as the robot (e.g., 'I tried to...')."
+    resp = openai.ChatCompletion.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.4,
+        max_tokens=512,
     )
-    return sys, user
+    return resp["choices"][0]["message"]["content"].strip()
 
 
-def build_inability_to_pour_prompt(goal_en, context_en, err_cfg, timing_mode):
-    expected = safe_get(err_cfg, "expected_outcome_en", default="")
-    failure = safe_get(err_cfg, "failure_mode_en", default="")
-    suggested = safe_get(err_cfg, "suggested_recovery_en", default="")
-
-    user = f"""
-Task goal:
-- {goal_en}
-
-Task context:
-- {context_en.strip() if context_en else ""}
-
-What happened:
-- The robot attempted to pour, but the liquid or cereal did not come out as expected.
-- Expected outcome: {expected}
-- Observed failure: {failure}
-
-Suggested recovery plan (high level):
-- {suggested}
-
-Instructions:
-- Explain, in simple terms, why the pouring attempt failed (e.g., bad angle, grasp, height, or blockage).
-- Emphasize that you noticed the pour did not work and that this is a limitation or difficulty, not the user's fault.
-- Describe clearly what you will do next to recover (adjust angle, reposition, or ask for help) and then try again.
-- Use 2–4 short paragraphs or bullet points, friendly, first-person voice.
-"""
-    sys = (
-        "You are a robot assistant explaining a failed pouring attempt to a non-technical user. "
-        "Focus on what went wrong, why pouring was difficult, and what your recovery plan is. "
-        "Align your explanation with the given context but you can phrase things naturally."
-    )
-    return sys, user
-
-
-def build_object_occluded_prompt(goal_en, context_en, err_cfg, timing_mode):
-    occluded_obj = safe_get(err_cfg, "occluded_object", default="the object")
-    occluder = safe_get(err_cfg, "occluder", default="an obstacle")
-    expected = safe_get(err_cfg, "expected_behavior_en", default="")
-    uncertainty_desc = safe_get(err_cfg, "uncertainty_description_en", default="")
-
-    user = f"""
-Task goal:
-- {goal_en}
-
-Task context:
-- {context_en.strip() if context_en else ""}
-
-What happened:
-- At first, I could not fully see the {occluded_obj} because it was hidden behind the {occluder}.
-- This made me uncertain about the exact position of the object and caused me to hesitate or search.
-- Explanation of uncertainty: {uncertainty_desc}
-
-Expected behavior:
-- {expected}
-
-Instructions:
-- Explain to the user that the object was occluded from your viewpoint.
-- Emphasize that you needed to look around or move to get a better view before acting.
-- Describe how you re-planned, moved, and then successfully continued the task.
-- Use 2–4 short paragraphs or bullet points, in a friendly first-person tone.
-"""
-    sys = (
-        "You are a robot assistant explaining a temporary uncertainty due to occlusion. "
-        "Describe why you could not see the object at first, how you handled the situation, "
-        "and how you eventually found and grasped the object."
-    )
-    return sys, user
-
-
-def build_grasp_failure_prompt(goal_en, context_en, timing_mode):
-    user = f"""
-Task goal:
-- {goal_en}
-
-Task context:
-- {context_en.strip() if context_en else ""}
-
-What happened:
-- I attempted to grasp the object, but the grasp failed (for example, I slipped, or only touched the edge).
-- I detected that the grasp was unsuccessful.
-
-Instructions:
-- Explain what might have caused the grasp to fail (e.g., shape, slipperiness, bad angle).
-- Reassure the user that this sometimes happens and is part of robot limitations.
-- Describe what you will do next to recover (re-approach, adjust fingers, ask for help).
-- Use 2–4 short paragraphs or bullet points in a friendly, first-person style.
-"""
-    sys = (
-        "You are a robot assistant explaining a failed grasp attempt. "
-        "Do not blame the user. Focus on your own limitations and your recovery plan."
-    )
-    return sys, user
-
+# ============================================================
+# 4. 主入口
+# ============================================================
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python Vid-E.py <experiment_yaml> <video_root> [timing_mode] [participant_id]")
+        print("Usage: python Vid-E.py <experiment.yaml> <VIDEO_ROOT>")
         sys.exit(1)
 
-    yaml_path = Path(sys.argv[1])
-    video_root = Path(sys.argv[2])
-    timing_mode = sys.argv[3] if len(sys.argv) > 3 else "immediate"  # "none" | "immediate" | "delayed"
-    participant_id = sys.argv[4] if len(sys.argv) > 4 else "pilot"
+    yaml_path = Path(sys.argv[1]).resolve()
+    video_root = Path(sys.argv[2]).resolve()
 
-    assert yaml_path.exists(), f"Config not found: {yaml_path}"
-    assert video_root.exists(), f"Video root not found: {video_root}"
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
 
-    cfg = yaml.safe_load(yaml_path.read_text())
+    meta = cfg.get("meta", {})
+    tools_cfg = cfg.get("tools", {})
+    llm_cfg = cfg.get("llm", {})
 
-    task_name = safe_get(cfg, "meta", "task_name", default=cfg["meta"].get("task_id", ""))
-    error_type = safe_get(cfg, "meta", "error_type", default=None)
-    goal_en = safe_get(cfg, "task", "goal_en", default="The robot is performing a manipulation task.")
-    context_en = safe_get(cfg, "task", "context_en", default="")
+    task_id = meta.get("task_id", "unknown_task")
+    task_name = meta.get("task_name", task_id)
+    goal_en = meta.get("goal_en", "The robot is performing a manipulation task.")
+    error_type = meta.get("error_type", "none")
+    explanation_timing = meta.get("explanation_timing", "immediate")
 
-    # 读取 perception 结果（如果有的话，就算是空也没关系）
-    timeline_path = video_root / "relations_timeline.json"
-    graph_path = video_root / "yolo_scene_graph.json"
-    timeline = load_json_or_none(timeline_path) or []
-    scene_graph = load_json_or_none(graph_path) or {"nodes": [], "edges": []}
+    expected_tool = meta.get("expected_tool") or tools_cfg.get("correct")
+    llm_hint = llm_cfg.get("hint", "").strip()
 
     print("✅ Using experiment config:", yaml_path.name)
-    print("✅ Video root           :", str(video_root))
-    print("⏱  Explanation timing  :", timing_mode)
-    print("👤 Participant / run ID :", participant_id)
+    print("✅ Video root           :", video_root)
+    print("⏱  Explanation timing  :", explanation_timing)
+    print("👤 Task / ID            :", task_name, "/", task_id)
 
-    print("=== Vid-E Context ===")
-    print("task_name :", task_name)
-    print("goal_en   :", goal_en)
-    print("error_type:", error_type)
+    # -----------------------------
+    # 4.1 读取 Vid-B 输出
+    # -----------------------------
+    nodes_json = load_json(video_root / "yolo_nodes.json", default={})
+    scene_json = load_json(video_root / "yolo_scene_graph.json", default={})
+    rel_json = load_json(video_root / "relations_timeline.json", default=[])
 
-    # ----------- 根据 error_type 读 YAML 的 error_config -----------
-    err_cfg = safe_get(cfg, "error_config", default={}) or {}
-    explanation_cfg = safe_get(cfg, "explanation", default={})
-    llm_cfg = safe_get(explanation_cfg, "llm", default={})
+    nodes_summary = summarize_nodes(nodes_json)
+    relations_summary = summarize_relations(rel_json)
 
-    # 默认：不触发 error
-    error_triggered = False
-    trigger_reason = ""
-    used_tool = None
-    expected_tool = None
-    tool_timeline_counts = {}
-    tool_graph_counts = {}
+    # -----------------------------
+    # 4.2 决定是否“触发错误”
+    # -----------------------------
 
-    # ---------------- wrong_tool 分支 ----------------
-    if error_type == "wrong_tool":
-        wt_cfg = safe_get(err_cfg, "wrong_tool", default={}) or {}
-        expected_tool = wt_cfg.get("expected_tool")
-        tool_candidates = wt_cfg.get("tool_candidates", []) or []
-        force_trigger = bool(wt_cfg.get("force_trigger", False))
-        assumed_wrong_tool = wt_cfg.get("assumed_wrong_tool")
+    # 现在设计：只要 error_type 不是 "none"，就当成 error trial
+    error_type_normalized = (error_type or "").strip().lower()
 
-        print("expected  :", expected_tool)
-        print("candidates:", tool_candidates)
-
-        # 尝试从 timeline 推断 used_tool（如果 Vid-B 有写 holding）
-        tool_timeline_counts, inferred_tool = summarize_timeline_for_debug(timeline, tool_candidates)
-        print("timeline_counts  :", tool_timeline_counts)
-        used_tool = inferred_tool
-
-        # 如果视觉完全没用上，就 fallback 到 YAML 里的 assumed_wrong_tool
-        if used_tool is None and assumed_wrong_tool:
-            used_tool = assumed_wrong_tool
-            trigger_reason = "Using assumed_wrong_tool from YAML."
-        elif used_tool is not None and expected_tool is not None:
-            trigger_reason = f"inferred used_tool={used_tool} vs expected_tool={expected_tool}"
-
-        # 触发逻辑：
-        # - 如果 expected_tool 和 used_tool 都有且不相等 => error
-        # - 如果 force_trigger=True 且 expected_tool / assumed_wrong_tool 给全了 => error
-        if expected_tool and used_tool and used_tool != expected_tool:
-            error_triggered = True
-        elif force_trigger and expected_tool and assumed_wrong_tool:
-            error_triggered = True
-            if not trigger_reason:
-                trigger_reason = "Force-triggered from YAML (force_trigger=true)."
-
-        print("error_triggered:", error_triggered)
-        print("reason         :", trigger_reason)
-
-    # ---------------- inability_to_pour 分支 ----------------
-    elif error_type == "inability_to_pour":
-        ip_cfg = safe_get(err_cfg, "inability_to_pour", default={}) or {}
-        force_trigger = bool(ip_cfg.get("force_trigger", False))
-        # 目前我们不依赖视觉，只要是这类实验视频就视为发生错误
-        error_triggered = force_trigger
-        trigger_reason = "Force-triggered inability_to_pour from YAML."
-
-    # ---------------- object_occluded 分支 ----------------
-    elif error_type == "object_occluded":
-        oo_cfg = safe_get(err_cfg, "object_occluded", default={}) or {}
-        force_trigger = bool(oo_cfg.get("force_trigger", False))
-        error_triggered = force_trigger
-        trigger_reason = "Force-triggered object_occluded from YAML."
-
-    # ---------------- grasp_failure 分支（预留） ----------------
-    elif error_type == "grasp_failure":
-        gf_cfg = safe_get(err_cfg, "grasp_failure", default={}) or {}
-        force_trigger = bool(gf_cfg.get("force_trigger", True))
-        error_triggered = force_trigger
-        trigger_reason = "Force-triggered grasp_failure from YAML."
-
-    else:
-        trigger_reason = f"Error type '{error_type}' not yet implemented for automatic triggering."
-
-    # 如果 timing_mode == "none"，表示实验的 baseline 条件，直接不生成解释
-    if timing_mode == "none":
-        print("⚪ timing_mode=none => Baseline condition, no user-facing explanation generated.")
-        explanation_text = (
-            "No explanation was generated because this run is in the baseline "
-            "no-explanation condition."
+    if error_type_normalized and error_type_normalized != "none":
+        error_triggered = True
+        reason = (
+            f"Config meta.error_type='{error_type}' → "
+            f"treat this run as an error trial (no automatic detection)."
         )
-        llm_used = False
     else:
-        # 如果错误没有实际触发，就生成一个“无错误”的简短说明（调试/对照用）
-        if not error_triggered:
-            print("error_triggered:", error_triggered)
-            print("reason         :", trigger_reason)
+        error_triggered = False
+        reason = (
+            f"Error type '{error_type}' means this run is treated as a non-error trial, "
+            f"so no error-aware explanation is generated."
+        )
+
+    # -----------------------------
+    # 4.3 调用 LLM 或输出 fallback
+    # -----------------------------
+    if error_triggered:
+        model_name = llm_cfg.get("model", DEFAULT_MODEL)
+
+        system_prompt = build_system_prompt(
+            task_name=task_name,
+            goal_en=goal_en,
+            error_type=error_type,
+            hint=llm_hint,
+        )
+        user_prompt = build_user_prompt(
+            nodes_summary=nodes_summary,
+            relations_summary=relations_summary,
+            error_type=error_type,
+            expected_tool=expected_tool,
+            tools_section=tools_cfg,
+        )
+
+        print("✅ Using LLM (", model_name, ") for explanations")
+        try:
+            explanation_text = call_llm(system_prompt, user_prompt, model=model_name)
+            llm_used = True
+        except Exception as e:
             explanation_text = (
-                "In this run, I did not detect a clear error based on the configured error type. "
-                "Therefore, I am not generating a detailed error-aware explanation for you this time."
+                "I was supposed to generate a detailed explanation using the LLM, "
+                f"but there was an error when calling the model: {e}"
             )
             llm_used = False
-        else:
-            # 这里才是真正调用 LLM 生成“研究用解释”的地方
-            prompter = build_llm_prompter(llm_cfg)
-            explanation_text = None
-            llm_used = False
+    else:
+        explanation_text = (
+            "In this run, I did not treat the behavior as an error trial based on the "
+            f"configured error_type = '{error_type}'. Therefore, I am not generating a "
+            "detailed error-aware explanation."
+        )
 
-            if error_type == "wrong_tool":
-                sys_prompt, user_prompt = build_wrong_tool_prompt(
-                    goal_en, context_en, expected_tool, used_tool, timing_mode
-                )
-            elif error_type == "inability_to_pour":
-                sys_prompt, user_prompt = build_inability_to_pour_prompt(
-                    goal_en, context_en, err_cfg.get("inability_to_pour", {}), timing_mode
-                )
-            elif error_type == "object_occluded":
-                sys_prompt, user_prompt = build_object_occluded_prompt(
-                    goal_en, context_en, err_cfg.get("object_occluded", {}), timing_mode
-                )
-            elif error_type == "grasp_failure":
-                sys_prompt, user_prompt = build_grasp_failure_prompt(
-                    goal_en, context_en, timing_mode
-                )
-            else:
-                sys_prompt = (
-                    "You are a robot assistant. Explain what kind of issue occurred "
-                    "in a friendly and concise way."
-                )
-                user_prompt = f"""
-Task goal:
-- {goal_en}
-
-Context:
-- {context_en}
-
-Error type:
-- {error_type}
-
-Instructions:
-- Briefly explain that there was some problem executing the task.
-- Suggest what you will try next time to improve.
-"""
-
-            if prompter is not None:
-                print("✅ Using LLM.prompt for explanations")
-                try:
-                    prompt_obj = {"system": sys_prompt, "user": user_prompt}
-                    explanation_text, _raw = prompter.query(
-                        prompt=prompt_obj,
-                        sampling_params={
-                            "temperature": llm_cfg.get("temperature", 0.3),
-                            "max_tokens": llm_cfg.get("max_tokens", 220),
-                        },
-                        save=False,
-                        save_dir=str(video_root),
-                    )
-                    explanation_text = explanation_text.strip()
-                    llm_used = True
-                except Exception as e:
-                    print("⚠️ LLM call failed, fallback to rule-based text:", e)
-
-            if not explanation_text:
-                # 兜底：如果 LLM 不可用
-                if error_type == "wrong_tool":
-                    explanation_text = (
-                        f"I was supposed to use the {expected_tool} to complete this task, "
-                        f"but I ended up using a different tool instead. I will put it down, "
-                        f"pick up the correct {expected_tool}, and then continue the task more carefully."
-                    )
-                elif error_type == "inability_to_pour":
-                    explanation_text = (
-                        "I tried to pour, but nothing came out. This likely happened because "
-                        "my angle or grasp was not good. I will adjust my position or ask for your "
-                        "help, then try pouring again more carefully."
-                    )
-                elif error_type == "object_occluded":
-                    explanation_text = (
-                        "At first I could not clearly see the object because it was hidden "
-                        "behind another item. I needed to move and look from a different angle "
-                        "before I could continue."
-                    )
-                else:
-                    explanation_text = (
-                        "There was a problem while I was executing the task. I will adjust my "
-                        "actions and try again more carefully."
-                    )
-                llm_used = False
-
-    # ---------------- 写文件 ----------------
+    # -----------------------------
+    # 4.4 保存结果 & 打印 summary
+    # -----------------------------
     out_txt = video_root / "vid_e_explanation.txt"
-    out_log = video_root / "vid_e_runlog.json"
-
-    out_txt.write_text(explanation_text.strip(), encoding="utf-8")
+    out_txt.write_text(explanation_text, encoding="utf-8")
 
     runlog = {
-        "timestamp": datetime.now().isoformat(),
-        "config": yaml_path.name,
+        "config": str(yaml_path),
         "video_root": str(video_root),
-        "participant_id": participant_id,
-        "timing_mode": timing_mode,
+        "task_id": task_id,
         "task_name": task_name,
         "goal_en": goal_en,
         "error_type": error_type,
-        "error_triggered": error_triggered,
-        "trigger_reason": trigger_reason,
         "expected_tool": expected_tool,
-        "used_tool": used_tool,
-        "tool_timeline_counts": tool_timeline_counts,
-        "scene_nodes": len(scene_graph.get("nodes", [])),
-        "scene_edges": len(scene_graph.get("edges", [])),
+        "error_triggered": error_triggered,
+        "reason": reason,
         "llm_used": llm_used,
-        "explanation": explanation_text.strip(),
+        "nodes_summary": nodes_summary,
+        "relations_summary": relations_summary,
     }
-    out_log.write_text(json.dumps(runlog, indent=2), encoding="utf-8")
+    (video_root / "vid_e_runlog.json").write_text(
+        json.dumps(runlog, indent=2), encoding="utf-8"
+    )
 
     print("\n=== Vid-E Explanation (LLM or fallback) ===")
-    print(explanation_text.strip())
+    print(explanation_text)
     print(f"\nSaved explanation -> {out_txt}")
 
     print("\n=== Vid-E Summary ===")
     print("Config     :", yaml_path.name)
-    print("Video Root :", str(video_root))
+    print("Video Root :", video_root)
     print("Error Type :", error_type)
-    print("Expected   :", expected_tool)
-    print("Used Tool  :", used_tool)
+    if expected_tool:
+        print("Expected   :", expected_tool)
     print("Triggered  :", int(error_triggered))
     print("LLM Used   :", llm_used)
-    print("Runlog     :", str(out_log))
+    print("Runlog     :", video_root / "vid_e_runlog.json")
 
 
 if __name__ == "__main__":

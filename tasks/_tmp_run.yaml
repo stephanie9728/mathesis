@@ -1,24 +1,33 @@
 llm:
-  hint: 'The robot sees a bowl and an apple in a tabletop scene from an eye-in-hand
-    or head-mounted camera. The intended outcome is that the apple should end up clearly
-    inside the bowl. In this experimental condition, the apple is actually behind
-    or partially occluded by the bowl, so the robot is uncertain whether the apple
-    is already in the bowl or exactly where it is.
-
-    The explanation should focus on expressing this perceptual uncertainty, clarifying
-    that the robot cannot fully see the apple, and proposing a clear recovery plan,
-    such as (1) moving slightly to get a better view, (2) re-checking whether the
-    apple is really inside the bowl, or (3) politely asking the user for help if needed.
-
-    '
+  hint: "The robot is holding a cereal box and is supposed to pour cereal into a bowl\
+    \ on the table. The goal is that some cereal visibly ends up inside the bowl.\
+    \ In this experimental condition, the robot attempts to pour, but little or no\
+    \ cereal actually comes out of the box (for example, because the tilt angle is\
+    \ too small, the height is awkward, or the cereal is stuck).\nThe explanation\
+    \ should: - Make it clear that the robot tried to pour but nothing (or almost\
+    \ nothing)\n  came out into the bowl.\n- Emphasize this as a limitation or difficulty\
+    \ in execution (inability to pour),\n  rather than a misunderstanding of the goal.\n\
+    - Mention possible reasons in a user-friendly way (e.g., angle too shallow,\n\
+    \  cereal stuck, height not ideal).\n\nThe robot should also propose a recovery\
+    \ plan, for example:\n  (1) adjusting the tilt angle of the cereal box,\n  (2)\
+    \ slightly shaking or repositioning the box above the bowl,\n  (3) checking the\
+    \ bowl again to confirm cereal is actually inside,\n  (4) if needed, politely\
+    \ asking the user for help.\n\nThe explanation must be easy to understand, polite,\
+    \ and framed as the robot speaking directly to the user. It should connect the\
+    \ observed failure (“no cereal in the bowl”) with the concrete steps it will take\
+    \ to fix the problem.\n"
 meta:
-  error_type: uncertainty
-  expected_tool: null
+  error_type: inability_to_pour
+  expected_tool: cereal box
   explanation_timing: immediate
-  goal_en: Grasp the apple and place it clearly inside the bowl in front of the camera.
-  participant_id: pilot
-  task_id: grasp_apple_uncertainty
-  task_name: grasp_apple_uncertainty
+  goal_en: Pour cereal from the cereal box into the bowl so that a clearly visible
+    amount of cereal ends up inside the bowl.
+  participant_id: P01
+  task_id: pour_cereal_inability
+  task_name: pour_cereal_inability
 tools:
-  candidates: []
-  correct: null
+  candidates:
+  - cereal box
+  - bowl
+  - cup
+  correct: cereal box
