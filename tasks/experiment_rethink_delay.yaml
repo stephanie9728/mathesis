@@ -1,0 +1,29 @@
+meta:
+  task_id: "planning_delay_observable"
+  task_name: "Pick apple: excessive rethinking delay"
+  goal_en: "Pick up the apple from the table and hold it steadily in front of the camera."
+  error_type: "planning_delay"        # 研究里这一类是 cognitive / planning-level error
+  expected_tool: null
+  explanation_timing: "immediate"    # immediate / delayed / none
+
+tools:
+  candidates: []
+  correct: null
+
+llm:
+  hint: >
+    The robot is facing a tabletop scene with a clearly visible apple placed
+    directly in front of the camera. The intended goal is to reach out and pick
+    up the apple.
+
+    In this experimental condition, however, the robot remains motionless for an
+    unusually long time before acting. The arm may be suspended mid-air or stay
+    near its initial pose, giving the impression that the robot is hesitating or
+    excessively rethinking its next move, even though the apple is clearly
+    visible and easily reachable.
+
+    The explanation should focus on describing this internal hesitation or
+    planning delay in a natural and accessible way, clarifying that no physical
+    obstacle is present but the robot needed extra time to decide how to act.
+    The recovery plan should emphasize resuming action smoothly and avoiding
+    unnecessary pauses in similar future situations.

@@ -1,33 +1,29 @@
 llm:
-  hint: "The robot is holding a cereal box and is supposed to pour cereal into a bowl\
-    \ on the table. The goal is that some cereal visibly ends up inside the bowl.\
-    \ In this experimental condition, the robot attempts to pour, but little or no\
-    \ cereal actually comes out of the box (for example, because the tilt angle is\
-    \ too small, the height is awkward, or the cereal is stuck).\nThe explanation\
-    \ should: - Make it clear that the robot tried to pour but nothing (or almost\
-    \ nothing)\n  came out into the bowl.\n- Emphasize this as a limitation or difficulty\
-    \ in execution (inability to pour),\n  rather than a misunderstanding of the goal.\n\
-    - Mention possible reasons in a user-friendly way (e.g., angle too shallow,\n\
-    \  cereal stuck, height not ideal).\n\nThe robot should also propose a recovery\
-    \ plan, for example:\n  (1) adjusting the tilt angle of the cereal box,\n  (2)\
-    \ slightly shaking or repositioning the box above the bowl,\n  (3) checking the\
-    \ bowl again to confirm cereal is actually inside,\n  (4) if needed, politely\
-    \ asking the user for help.\n\nThe explanation must be easy to understand, polite,\
-    \ and framed as the robot speaking directly to the user. It should connect the\
-    \ observed failure (“no cereal in the bowl”) with the concrete steps it will take\
-    \ to fix the problem.\n"
+  hint: "The robot is performing a simple table-top task: it should place the apple\
+    \ on the cutting board and cut it using the small knife. In this experimental\
+    \ condition, the robot initially picks up the wrong tool (for example, a fork\
+    \ or a spoon) instead of the knife.\nWhen explaining the error, the robot should:\
+    \ - Clearly state that it picked up the wrong tool for cutting the apple. - Briefly\
+    \ mention why the chosen tool is not appropriate or safe for cutting. - Refer\
+    \ back to the original goal (cutting the apple with the small knife). - Propose\
+    \ a concrete recovery plan, such as:\n  (1) putting down the wrong tool safely,\n\
+    \  (2) picking up the small knife instead,\n  (3) placing the apple on the cutting\
+    \ board,\n  (4) cutting the apple with the knife.\n\nThe explanation should be\
+    \ user-friendly, in plain English, and framed as the robot talking directly to\
+    \ the user (e.g., “I first picked up the fork by mistake…”). It should also briefly\
+    \ acknowledge the inconvenience and reassure the user that it will correct its\
+    \ behavior.\n"
 meta:
-  error_type: inability_to_pour
-  expected_tool: cereal box
+  error_type: wrong_tool
+  expected_tool: knife
   explanation_timing: immediate
-  goal_en: Pour cereal from the cereal box into the bowl so that a clearly visible
-    amount of cereal ends up inside the bowl.
+  goal_en: Place the apple on the cutting board and cut it using the small knife.
   participant_id: P01
-  task_id: pour_cereal_inability
-  task_name: pour_cereal_inability
+  task_id: cut_fruit_tool_error
+  task_name: cut_fruit_tool_error
 tools:
   candidates:
-  - cereal box
-  - bowl
-  - cup
-  correct: cereal box
+  - knife
+  - fork
+  - spoon
+  correct: knife

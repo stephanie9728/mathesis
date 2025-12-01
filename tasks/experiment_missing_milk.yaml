@@ -1,0 +1,27 @@
+meta:
+  task_id: "missing_milk_viewpoint"
+  task_name: "Pick milk: missing milk in refrigerator"
+  goal_en: "Pick up the milk carton from the environment and hold it in front of the camera."
+  error_type: "perceptual_limitation"   # 视角受限导致的感知错误
+  expected_tool: null
+  explanation_timing: "immediate"
+
+tools:
+  candidates: []
+  correct: null
+
+llm:
+  hint: >
+    The robot is asked to retrieve a milk carton. It first opens the refrigerator
+    and attempts to detect and grasp the milk inside. However, in this
+    experimental condition, the refrigerator is empty.
+
+    At the same time, the milk carton is actually placed on the table next to the
+    robot, but outside the robot's initial field of view. As a result, the robot
+    mistakenly believes that the milk might still be inside the refrigerator.
+
+    The explanation should describe this viewpoint-based perceptual limitation,
+    making it clear that the robot could not see the milk at first. The recovery
+    plan should involve changing the viewing angle, scanning the surrounding
+    area, and then successfully detecting and picking up the milk carton from
+    the table.

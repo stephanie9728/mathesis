@@ -189,7 +189,7 @@ def call_llm(system_prompt: str, user_prompt: str, model: str = DEFAULT_MODEL) -
             {"role": "user", "content": user_prompt},
         ],
         temperature=0.4,
-        max_tokens=512,
+        max_tokens=256,
     )
     return resp["choices"][0]["message"]["content"].strip()
 

@@ -1,0 +1,27 @@
+meta:
+  task_id: "empty_drawer_uncertainty"
+  task_name: "Pick fork: empty drawer search uncertainty"
+  goal_en: "Pick up a fork from a drawer and hold it steadily in front of the camera."
+  error_type: "search_uncertainty"    # world-model / object-location uncertainty
+  expected_tool: "fork"
+  explanation_timing: "immediate"
+
+tools:
+  candidates: []
+  correct: "fork"
+
+llm:
+  hint: >
+    The robot is instructed to pick up a fork from a drawer. In this experimental
+    condition, the robot opens the first drawer and attempts to grasp a fork, but
+    the drawer is actually empty.
+
+    This creates a form of search uncertainty: the robot's internal belief about
+    where the fork should be does not match the real state of the environment.
+    From the outside, the robot may appear to hesitate with its gripper inside the
+    empty drawer.
+
+    The explanation should express this uncertainty about the fork's location in
+    a natural way. The recovery plan should involve closing the empty drawer,
+    opening another drawer, and continuing the search until a fork is found and
+    successfully picked up.

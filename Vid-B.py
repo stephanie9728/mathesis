@@ -31,13 +31,12 @@ from groundingdino.util.inference import load_model, load_image, predict, annota
 TASK_PROMPTS = {
     # 错误工具切水果
     "cut_fruit_tool_error": (
-        "person . hand . apple . red apple . banana . "
-        "knife . fork . spoon . cutting board . chopping board . table . bowl . cup"
+        "apple . red apple . banana . "
+        "knife . fork . spoon . cutting board . chopping board"
     ),
     # 倒麦片能力不足
     "pour_cereal_inability": (
-        "person . hand . cereal box . cereal . milk carton . bottle . "
-        "bowl . cup . mug . spoon . table"
+        "cereal box . cereal . milk carton . bowl . table"
     ),
     # 抓苹果：不确定位置
     "grasp_apple_uncertainty": (
@@ -45,22 +44,39 @@ TASK_PROMPTS = {
     ),
 }
 
-# 用来在 phrase 里做匹配的关键词（过滤 + 统计）
 TASK_KEYWORDS = {
     "cut_fruit_tool_error": [
-        "person", "hand", "apple", "banana",
+        "apple", "banana",
         "knife", "fork", "spoon",
         "cutting board", "chopping board",
-        "bowl", "cup", "table",
     ],
     "pour_cereal_inability": [
-        "person", "hand",
         "cereal box", "cereal",
-        "milk carton", "bottle",
-        "bowl", "cup", "mug", "spoon", "table",
+        "milk carton",
+        "bowl", "table",
     ],
     "grasp_apple_uncertainty": [
-        "hand", "apple", "red apple", "bowl", "white bowl", "table",
+        "hand", "apple", "red apple",
+        "bowl", "white bowl", "table",
+    ],
+}
+
+# 把 phrase 映射成“简洁标签”的优先级
+LABEL_PRIORITY = {
+    "cut_fruit_tool_error": [
+        "knife", "fork", "spoon",
+        "apple", "banana",
+        "cutting board", "chopping board",
+    ],
+    "pour_cereal_inability": [
+        "cereal box", "cereal",
+        "bowl",
+        "milk carton",
+    ],
+    "grasp_apple_uncertainty": [
+        "apple", "red apple",
+        "bowl", "white bowl",
+        "hand",
     ],
 }
 
@@ -70,29 +86,11 @@ VIDEO_ROOT_TO_TASK = {
     "camera_demo_apple":  "grasp_apple_uncertainty",
 }
 
-# 把 phrase 映射成“简洁标签”的优先级
-LABEL_PRIORITY = {
-    "cut_fruit_tool_error": [
-        "knife", "fork", "spoon",
-        "apple", "banana",
-        "bowl", "cup",
-        "cutting board", "chopping board",
-    ],
-    "pour_cereal_inability": [
-        "cereal box", "cereal",
-        "bowl", "cup", "mug",
-        "spoon",
-        "milk carton", "bottle",
-    ],
-    "grasp_apple_uncertainty": [
-        "apple", "red apple",
-        "banana", "fruit",
-        "bowl", "white bowl",
-    ],
-}
-
-TOPK_PER_KEYWORD = 3       # 每个关键词最多保留多少框
-MAX_FRAMES = 300           # 最多处理多少帧（防止太慢）
+# 加速/控制参数
+TOPK_PER_KEYWORD = 1      # 每个关键词最多保留多少框（够用了）
+MAX_FRAMES = 150          # 最多处理多少帧（防止太慢）
+FRAME_STRIDE = 10          # 每隔多少帧采样一次
+SAVE_PREVIEW = False       # 是否保存第一帧可视化
 
 
 # ============================================================
@@ -146,14 +144,12 @@ def main():
         raise FileNotFoundError(f"找不到 frames 目录: {frame_dir}")
 
     task_name = VIDEO_ROOT_TO_TASK.get(video_root.name)
-
     if task_name is None:
         print(f"⚠️ 未识别 video_root 名: {video_root.name}，使用 grasp_apple_uncertainty 兜底")
         task_name = "grasp_apple_uncertainty"
 
     prompt = TASK_PROMPTS[task_name]
     keywords = TASK_KEYWORDS[task_name]
-
 
     print(f"\n✅ Vid-B Task : {task_name}")
     print(f"✅ Video Root : {video_root}")
@@ -167,10 +163,12 @@ def main():
     print("✅ GroundingDINO loaded\n")
 
     # -----------------------------
-    # 3.2 逐帧推理
+    # 3.2 逐帧推理（带采样）
     # -----------------------------
     frame_paths = sorted(frame_dir.glob("*.png")) + sorted(frame_dir.glob("*.jpg"))
     frame_paths = frame_paths[:MAX_FRAMES]
+    if FRAME_STRIDE > 1:
+        frame_paths = frame_paths[::FRAME_STRIDE]
 
     if not frame_paths:
         raise RuntimeError(f"❌ {frame_dir} 下没有帧图片")
@@ -228,9 +226,9 @@ def main():
         relations_timeline.append({"frame": frame_id, "relations": []})
 
         # -----------------------------
-        # 保存第一帧的可视化预览
+        # 保存第一帧的可视化预览（可选）
         # -----------------------------
-        if not annotated_saved and boxes_keep.shape[0] > 0:
+        if SAVE_PREVIEW and (not annotated_saved) and boxes_keep.shape[0] > 0:
             annotated = annotate(
                 image_source=image_source,
                 boxes=boxes_keep,
