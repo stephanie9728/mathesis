@@ -2,7 +2,7 @@
 import cv2
 from pathlib import Path
 
-VIDEO_ROOT = Path("camera_demo_apple")
+VIDEO_ROOT = Path("camera_demo_take_milk")
 frames_dir = VIDEO_ROOT / "frames"
 out_path = VIDEO_ROOT / "raw.mp4"
 

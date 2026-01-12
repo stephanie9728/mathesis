@@ -1,0 +1,22 @@
+{
+  "task_id": "missing_knife_two_drawers",
+  "video_root": "/home/ru53kem/Projects/mathesis/missing_knife_two_drawers",
+  "generator": "GroundingDINO",
+  "sampled_frames": 15,
+  "empty_frame_ratio": 0.13333333333333333,
+  "nodes": [
+    {
+      "label": "drawer",
+      "count": 24
+    },
+    {
+      "label": "table",
+      "count": 11
+    },
+    {
+      "label": "knife",
+      "count": 1
+    }
+  ],
+  "edges": []
+}

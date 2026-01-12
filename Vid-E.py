@@ -1,201 +1,229 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
-Vid-E: LLM-based error explanation (purely config driven)
-
-Usage:
-  python Vid-E.py tasks/experiment_grasp_apple_uncertainty.yaml /path/to/VIDEO_ROOT
-
-Assumptions:
-  - VIDEO_ROOT contains outputs from Vid-B:
-      yolo_nodes.json
-      yolo_scene_graph.json
-      relations_timeline.json
-  - YAML config has the structure:
-
-    meta:
-      task_id: "grasp_apple_uncertainty"
-      task_name: "Grasp apple: uncertainty about location"
-      goal_en: "Grasp the apple ..."
-      error_type: "uncertainty"      # or "wrong_tool" / "inability"
-      explanation_timing: "immediate"
-
-    tools:
-      candidates: []                 # optional
-      correct: null                  # optional
-
-    llm:
-      hint: >                        # long, task-specific hint
-        ...
-
-This script NO LONGER tries to auto-detect errors.
-If meta.error_type is one of {"uncertainty", "wrong_tool", "inability"},
-we *always* generate an error-aware explanation using the LLM.
+Vid-E (TEXT-FIRST, ERROR-GATED)
+================================
+- timing == none  -> never generate explanation
+- timing != none  -> generate explanation ONLY IF error_confirmed == True
+- Writes:
+    vid_e_explanation.txt
+    explanation_text.txt
+    vid_e_runlog.json
+- Controller owns playback timing.
 """
 
 import json
 import os
+import re
 import sys
+import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import List, Optional, Dict, Any
 
 import yaml
-import openai  # 使用旧版 SDK 接口：openai.ChatCompletion.create
+import openai
 
-# 默认模型名（在 YAML 的 llm.model 里可以覆盖）
 DEFAULT_MODEL = "gpt-4o-mini"
+MAX_WORDS = 25
 
-# 从环境变量读取 API Key（推荐做法）
 openai.api_key = os.environ.get("OPENAI_API_KEY", "")
+SPEAK_MODE = os.environ.get("VIDE_SPEAK_MODE", "never").lower()  # kept for compatibility
+
 
 # ============================================================
-# 1. 读 Vid-B 输出
+# Prompts
 # ============================================================
 
-def load_json(path: Path, default):
-    if not path.exists():
-        return default
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception as e:
-        print(f"⚠️ Failed to load {path}: {e}")
-        return default
-
-
-def summarize_nodes(nodes_json: Dict[str, Any], top_k: int = 6) -> str:
-    nodes = nodes_json.get("nodes", [])
-    if not isinstance(nodes, list) or not nodes:
-        return "I did not detect any specific objects in the scene graph."
-
-    nodes_sorted = sorted(
-        nodes,
-        key=lambda x: -x.get("count", 0)
-    )[:top_k]
-
-    lines = []
-    for n in nodes_sorted:
-        label = n.get("label", "object")
-        count = n.get("count", 0)
-        lines.append(f"- {label}: observed {count} times across frames.")
-    return "From the scene graph, I detected:\n" + "\n".join(lines)
-
-
-def summarize_relations(rel_json: Any, max_frames: int = 5) -> str:
-    if not isinstance(rel_json, list) or not rel_json:
-        return "I did not infer any explicit spatial relations over time."
-
-    num_frames = len(rel_json)
-    sample_frames = rel_json[:max_frames]
-    frames_str = ", ".join(str(f.get("frame", i)) for i, f in enumerate(sample_frames))
-    return (
-        f"There is a relation timeline with {num_frames} frames "
-        f"(showing relations for frames: {frames_str}). "
-        "Currently no specific relations are listed, but this indicates how long the scene was observed."
+def build_system_prompt_non_observable(explanation_timing: str) -> str:
+    tense_rule = (
+        "Use future tense for the recovery action (e.g., 'I will adjust...')."
+        if explanation_timing == "immediate"
+        else
+        "Use past tense for the recovery action (e.g., 'I adjusted...')."
     )
-
-
-# ============================================================
-# 2. 构造 LLM 提示词
-# ============================================================
-
-def build_system_prompt(task_name: str, goal_en: str, error_type: str, hint: str) -> str:
     return f"""
-You are a helpful, polite assistive kitchen robot speaking to a non-expert human user.
+You are generating a VERY SHORT spoken robot explanation for a live in-person experiment.
 
-Your goal is to naturally explain:
-- What you were trying to do;
-- What you currently see in the scene;
-- What went wrong;
-- Why this led to uncertainty or difficulty for you.
+Context awareness:
+- You know the task goal, the scene, and the objects involved.
+- You know what action you were trying to perform and why.
+- An execution problem has already been confirmed by the system.
 
-Speak in the first person ("I").
-Use a calm, slightly detailed, and reassuring tone.
-It is OK if the explanation is a bit longer than a few sentences.
-Do NOT mention any technical system details, models, confidence scores, or probabilities.
+Error type: NON-OBSERVABLE.
+The user CANNOT directly see the reason for the failure from the robot's motion alone.
 
-Task name: {task_name}
-Intended goal: {goal_en}
-Configured error type: {error_type}
+Your explanation MUST:
+- Briefly describe the situation and the failed action.
+- Attribute the failure to a non-visible physical or interaction property.
+- State the corrective behavior.
 
-After your explanation, you MUST add a short recovery plan in the following format:
+Output exactly TWO short sentences using this template:
+"I couldn’t {{action}} the {{object}} because {{cause}}. I {{recovery_action}}."
 
-Next steps:
-- bullet point
-- bullet point
-- bullet point (2–4 bullets total)
-
-The "Next steps" should describe what you will do next to improve the situation and how you will act more safely or carefully.
-
-Additional experiment-specific guidance:
-{hint}
+Rules:
+- The cause MUST describe a non-visible property (e.g., flatness, instability, slippage).
+- Do NOT mention sensors, models, uncertainty, probabilities, or internal decision-making.
+- Do NOT explain timing or error detection.
+- Total length ≤ {MAX_WORDS} words.
+- {tense_rule}
+- Output ONLY the two sentences.
 """.strip()
 
 
-
-
-def build_user_prompt(
-    nodes_summary: str,
-    relations_summary: str,
-    error_type: str,
-    expected_tool: Optional[str],
-    tools_section: Dict[str, Any],
-) -> str:
-    lines: List[str] = []
-
-    lines.append("Here is a summary of what I detected from the video scene:")
-    lines.append("")
-    lines.append(nodes_summary)
-    lines.append("")
-    lines.append(relations_summary)
-    lines.append("")
-    lines.append(f"The experiment config sets error_type = '{error_type}'.")
-
-    if expected_tool:
-        lines.append(f"The config suggests that the expected tool is: '{expected_tool}'.")
-
-    candidates = tools_section.get("candidates")
-    if isinstance(candidates, list) and candidates:
-        lines.append(f"Tool candidates mentioned in the config: {candidates}.")
-
-    lines.append("")
-    lines.append(
-        "Please now produce a single, user-facing explanation describing the error "
-        "condition in this specific run, in a way that would make sense to a non-expert user."
+def build_system_prompt_observable(explanation_timing: str) -> str:
+    tense_rule = (
+        "Use future tense for the recovery action (e.g., 'I will go around...')."
+        if explanation_timing == "immediate"
+        else
+        "Use past tense for the recovery action (e.g., 'I went around...')."
     )
+    return f"""
+You are generating a VERY SHORT spoken robot explanation for a live in-person experiment.
 
-    return "\n".join(lines)
+Context awareness:
+- You know the task goal, the scene, and the visible objects.
+- You know what action you were trying to perform.
+- An execution problem has already been confirmed by the system.
+
+Error type: OBSERVABLE.
+The user CAN see the reason for the problem from the scene or the robot’s behavior.
+
+Your explanation MUST:
+- Briefly confirm the visible situation.
+- State the corrective behavior without inferring hidden causes.
+
+Output exactly TWO short sentences using this template:
+"I couldn’t {{action}} the {{object}} because {{cause}}. I {{recovery_action}}."
+
+Rules:
+- The cause MUST describe a visible situation or event in the scene.
+- Do NOT infer hidden properties or internal reasoning.
+- Do NOT explain timing or error detection.
+- Total length ≤ {MAX_WORDS} words.
+- {tense_rule}
+- Output ONLY the two sentences.
+""".strip()
+
+
+def build_user_prompt(task_name: str,
+                      action: str,
+                      object_name: str,
+                      possible_causes: List[str],
+                      recovery_actions: List[str]) -> str:
+    return f"""
+Task: {task_name}
+Action verb: {action}
+Object: {object_name}
+
+Choose EXACTLY ONE cause from the list and copy it VERBATIM:
+{", ".join(possible_causes)}
+
+Choose EXACTLY ONE recovery action from the list and copy it VERBATIM:
+{", ".join(recovery_actions)}
+
+Return only the two-sentence template.
+""".strip()
 
 
 # ============================================================
-# 3. 调用 LLM（旧版 openai.ChatCompletion 接口）
+# LLM
 # ============================================================
 
-def call_llm(system_prompt: str, user_prompt: str, model: str = DEFAULT_MODEL) -> str:
-    """
-    使用旧版 openai.ChatCompletion 接口。
-    需要环境变量 OPENAI_API_KEY 已设置，或者提前设置 openai.api_key。
-    """
+def call_llm(system_prompt: str, user_prompt: str, model: str) -> str:
     if not openai.api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY is not set. Please export it in your environment "
-            "or set openai.api_key manually."
-        )
-
+        raise RuntimeError("OPENAI_API_KEY is not set.")
     resp = openai.ChatCompletion.create(
         model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        temperature=0.4,
-        max_tokens=256,
+        temperature=0.2,
+        max_tokens=80,
     )
     return resp["choices"][0]["message"]["content"].strip()
 
 
 # ============================================================
-# 4. 主入口
+# Validation / postprocess / fallback
+# ============================================================
+
+def normalize_two_sentences(text: str) -> str:
+    t = " ".join(text.split())
+    t = t.replace("couldn't", "couldn’t")
+
+    # keep only first two sentences
+    parts = re.split(r"(?<=[.!?])\s+", t)
+    parts = [p for p in parts if p]
+    if len(parts) >= 2:
+        t = parts[0].rstrip() + " " + parts[1].rstrip()
+    elif len(parts) == 1:
+        t = parts[0].rstrip()
+        if " I " in t and not t.endswith("."):
+            t += "."
+        if t.count(".") == 0:
+            t = t.rstrip(".") + ". I will try a different approach."
+    else:
+        t = ""
+
+    if t and not re.search(r"[.!?]$", t):
+        t += "."
+    return t
+
+
+def is_acceptable(text: str) -> bool:
+    if not text:
+        return False
+    w = text.split()
+    if len(w) > MAX_WORDS:
+        return False
+    if not text.lower().startswith("i couldn"):
+        return False
+    # quick check that we have two sentences-ish
+    return text.count(".") >= 1
+
+
+def fallback_explanation(action: str, object_name: str, timing: str) -> str:
+    action = action or "perform"
+    object_name = object_name or "object"
+    if timing == "immediate":
+        return f"I couldn’t {action} the {object_name} because it didn’t work as expected. I will try a different approach."
+    else:
+        return f"I couldn’t {action} the {object_name} because it didn’t work as expected. I tried a different approach."
+
+
+def normalize_timing(explanation_timing: str) -> str:
+    t = (explanation_timing or "immediate").lower()
+    if t == "post":
+        return "post_recovery"
+    if t not in {"none", "immediate", "post_recovery"}:
+        return "immediate"
+    return t
+
+
+def read_error_flag(video_root: Path) -> Dict[str, Any]:
+    """
+    Read error_flag.json produced by Vid-D.
+    If missing, default to error_confirmed=True for non-window roots,
+    but error_confirmed=False for window roots to avoid early explanations.
+    """
+    flag_path = video_root / "error_flag.json"
+    if flag_path.exists():
+        try:
+            return json.loads(flag_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    # default if missing
+    is_window = "windows" in [p.name for p in video_root.parents] or (video_root.name.startswith("w") and video_root.parent.name == "windows")
+    if is_window:
+        return {"error_confirmed": False, "source": "Vid-E default(window)=False (missing error_flag.json)"}
+    return {"error_confirmed": True, "source": "Vid-E default(full)=True (missing error_flag.json)"}
+
+
+# ============================================================
+# Main
 # ============================================================
 
 def main():
@@ -207,129 +235,139 @@ def main():
     video_root = Path(sys.argv[2]).resolve()
 
     cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    meta = cfg.get("meta", {}) or {}
+    llm_cfg = cfg.get("llm", {}) or {}
 
-    meta = cfg.get("meta", {})
-    tools_cfg = cfg.get("tools", {})
-    llm_cfg = cfg.get("llm", {})
+    task_name = meta.get("task_name", meta.get("task_id", "unknown_task"))
+    error_type = (meta.get("error_type") or "").lower()
+    explanation_timing = normalize_timing(meta.get("explanation_timing"))
 
-    task_id = meta.get("task_id", "unknown_task")
-    task_name = meta.get("task_name", task_id)
-    goal_en = meta.get("goal_en", "The robot is performing a manipulation task.")
-    error_type = meta.get("error_type", "none")
-    explanation_timing = meta.get("explanation_timing", "immediate")
+    action = meta.get("action", "perform")
+    object_name = meta.get("object", "object")
 
-    expected_tool = meta.get("expected_tool") or tools_cfg.get("correct")
-    llm_hint = llm_cfg.get("hint", "").strip()
+    possible_causes = llm_cfg.get("possible_causes", ["it did not work as expected"])
+    recovery_actions = llm_cfg.get("recovery_actions", ["try a different approach"])
+    model_name = llm_cfg.get("model", DEFAULT_MODEL)
 
-    print("✅ Using experiment config:", yaml_path.name)
-    print("✅ Video root           :", video_root)
-    print("⏱  Explanation timing  :", explanation_timing)
-    print("👤 Task / ID            :", task_name, "/", task_id)
+    # --------- NEW: error gating ----------
+    flag = read_error_flag(video_root)
+    error_confirmed = bool(flag.get("error_confirmed", False))
+    flag_source = flag.get("source", "unknown")
 
-    # -----------------------------
-    # 4.1 读取 Vid-B 输出
-    # -----------------------------
-    nodes_json = load_json(video_root / "yolo_nodes.json", default={})
-    scene_json = load_json(video_root / "yolo_scene_graph.json", default={})
-    rel_json = load_json(video_root / "relations_timeline.json", default=[])
+    print("✅ Vid-E (ERROR-GATED)")
+    print("   Task        :", task_name)
+    print("   Timing      :", explanation_timing)
+    print("   Error type  :", error_type)
+    print("   Action      :", action)
+    print("   Object      :", object_name)
+    print("   error_conf  :", error_confirmed, f"({flag_source})")
+    print("   Speak mode  :", SPEAK_MODE)
 
-    nodes_summary = summarize_nodes(nodes_json)
-    relations_summary = summarize_relations(rel_json)
+    # timing==none MUST be preserved
+    if explanation_timing == "none":
+        explanation_text = ""
+        llm_used = False
+        reason = "timing==none -> no explanation"
+        _write_outputs(video_root, yaml_path, task_name, error_type, explanation_timing, action, object_name,
+                       error_confirmed, flag_source, llm_used, reason, explanation_text)
+        print("\n=== Vid-E Output ===")
+        print("[NO EXPLANATION]")
+        raise SystemExit(10)
 
-    # -----------------------------
-    # 4.2 决定是否“触发错误”
-    # -----------------------------
+    # error gate: if not confirmed, do not explain
+    if not error_confirmed:
+        explanation_text = ""
+        llm_used = False
+        reason = "error_confirmed==False -> no explanation"
+        _write_outputs(video_root, yaml_path, task_name, error_type, explanation_timing, action, object_name,
+                       error_confirmed, flag_source, llm_used, reason, explanation_text)
+        print("\n=== Vid-E Output ===")
+        print("[NO EXPLANATION]")
+        raise SystemExit(10)
 
-    # 现在设计：只要 error_type 不是 "none"，就当成 error trial
-    error_type_normalized = (error_type or "").strip().lower()
+    # else: error_confirmed -> generate explanation
+    system_prompt = (
+        build_system_prompt_non_observable(explanation_timing)
+        if error_type in {"non_observable", "non-observable", "nonobservable"}
+        else build_system_prompt_observable(explanation_timing)
+    )
+    user_prompt = build_user_prompt(
+        task_name=task_name,
+        action=action,
+        object_name=object_name,
+        possible_causes=possible_causes,
+        recovery_actions=recovery_actions,
+    )
 
-    if error_type_normalized and error_type_normalized != "none":
-        error_triggered = True
-        reason = (
-            f"Config meta.error_type='{error_type}' → "
-            f"treat this run as an error trial (no automatic detection)."
-        )
-    else:
-        error_triggered = False
-        reason = (
-            f"Error type '{error_type}' means this run is treated as a non-error trial, "
-            f"so no error-aware explanation is generated."
-        )
+    tts_timing = {}
+    llm_used = False
+    reason = ""
+    explanation_text = ""
 
-    # -----------------------------
-    # 4.3 调用 LLM 或输出 fallback
-    # -----------------------------
-    if error_triggered:
-        model_name = llm_cfg.get("model", DEFAULT_MODEL)
+    try:
+        raw = call_llm(system_prompt, user_prompt, model_name)
+        raw = normalize_two_sentences(raw)
+        raw = " ".join(raw.split()[:MAX_WORDS])
 
-        system_prompt = build_system_prompt(
-            task_name=task_name,
-            goal_en=goal_en,
-            error_type=error_type,
-            hint=llm_hint,
-        )
-        user_prompt = build_user_prompt(
-            nodes_summary=nodes_summary,
-            relations_summary=relations_summary,
-            error_type=error_type,
-            expected_tool=expected_tool,
-            tools_section=tools_cfg,
-        )
-
-        print("✅ Using LLM (", model_name, ") for explanations")
-        try:
-            explanation_text = call_llm(system_prompt, user_prompt, model=model_name)
+        if is_acceptable(raw):
+            explanation_text = raw
             llm_used = True
-        except Exception as e:
-            explanation_text = (
-                "I was supposed to generate a detailed explanation using the LLM, "
-                f"but there was an error when calling the model: {e}"
-            )
+            reason = "LLM output accepted."
+        else:
+            explanation_text = fallback_explanation(action, object_name, explanation_timing)
             llm_used = False
-    else:
-        explanation_text = (
-            "In this run, I did not treat the behavior as an error trial based on the "
-            f"configured error_type = '{error_type}'. Therefore, I am not generating a "
-            "detailed error-aware explanation."
-        )
+            reason = "LLM output invalid -> fallback used."
 
-    # -----------------------------
-    # 4.4 保存结果 & 打印 summary
-    # -----------------------------
+    except Exception as e:
+        explanation_text = fallback_explanation(action, object_name, explanation_timing)
+        llm_used = False
+        reason = f"LLM failed: {e} -> fallback used."
+
+    _write_outputs(video_root, yaml_path, task_name, error_type, explanation_timing, action, object_name,
+                   error_confirmed, flag_source, llm_used, reason, explanation_text, tts_timing)
+
+    print("\n=== Vid-E Output ===")
+    print(explanation_text if explanation_text else "[NO EXPLANATION]")
+    raise SystemExit(0 if explanation_text else 10)
+
+
+def _write_outputs(
+    video_root: Path,
+    yaml_path: Path,
+    task_name: str,
+    error_type: str,
+    explanation_timing: str,
+    action: str,
+    object_name: str,
+    error_confirmed: bool,
+    flag_source: str,
+    llm_used: bool,
+    reason: str,
+    explanation_text: str,
+    tts_timing: Optional[Dict[str, Any]] = None,
+):
     out_txt = video_root / "vid_e_explanation.txt"
+    stable_txt = video_root / "explanation_text.txt"
     out_txt.write_text(explanation_text, encoding="utf-8")
+    stable_txt.write_text(explanation_text, encoding="utf-8")
 
     runlog = {
         "config": str(yaml_path),
-        "video_root": str(video_root),
-        "task_id": task_id,
         "task_name": task_name,
-        "goal_en": goal_en,
         "error_type": error_type,
-        "expected_tool": expected_tool,
-        "error_triggered": error_triggered,
-        "reason": reason,
+        "explanation_timing": explanation_timing,
+        "action": action,
+        "object": object_name,
+        "error_confirmed": error_confirmed,
+        "error_flag_source": flag_source,
         "llm_used": llm_used,
-        "nodes_summary": nodes_summary,
-        "relations_summary": relations_summary,
+        "reason": reason,
+        "explanation": explanation_text,
+        "tts": tts_timing or {},
+        "speak_mode": SPEAK_MODE,
+        "ts": time.time(),
     }
-    (video_root / "vid_e_runlog.json").write_text(
-        json.dumps(runlog, indent=2), encoding="utf-8"
-    )
-
-    print("\n=== Vid-E Explanation (LLM or fallback) ===")
-    print(explanation_text)
-    print(f"\nSaved explanation -> {out_txt}")
-
-    print("\n=== Vid-E Summary ===")
-    print("Config     :", yaml_path.name)
-    print("Video Root :", video_root)
-    print("Error Type :", error_type)
-    if expected_tool:
-        print("Expected   :", expected_tool)
-    print("Triggered  :", int(error_triggered))
-    print("LLM Used   :", llm_used)
-    print("Runlog     :", video_root / "vid_e_runlog.json")
+    (video_root / "vid_e_runlog.json").write_text(json.dumps(runlog, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

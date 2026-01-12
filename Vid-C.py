@@ -1,191 +1,314 @@
-# Vid-C.py  —  Scene Graph -> User-facing Explanation (optimized)
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# Vid-C.py — Generic Error Detector (YAML-driven, window-stable)
+#
+# Usage:
+#   python Vid-C.py <experiment_yaml> <video_root>
+#
+# Output:
+#   <video_root>/vid_c_runlog.json
+#
+# Supports:
+#   detector.type:
+#     - missing_object
+#     - external_flag
+#     - always / never
+#
+# missing_object extras:
+#   - present_count_ge: int (default 1)
+#   - gate_presence_any: [..] (optional)
+#   - require_empty_ratio_le: float (optional)
+#   - min_total_nodes: int (optional; now SOFT, not hard block)
+#   - confirm_k: int (default 1): require K consecutive windows missing before confirm
+#   - state_file: str (default ".detector_state.json") stored under <task>/windows/
+#
+# Rationale:
+#   - "not enough context" should not hard-block triggering; otherwise windows become unstable.
+#   - confirm_k provides stability across windows.
 
-import os
 import sys
 import time
 import json
 from pathlib import Path
+from typing import Any, Dict, Optional, List, Tuple
+
+import yaml
 
 
-def load_scene_graph(video_root: Path):
-    graph_path = video_root / "yolo_scene_graph.json"
-    assert graph_path.exists(), f"缺少 {graph_path}，请先运行 Vid-B.py"
-    graph = json.loads(graph_path.read_text())
-    return graph_path, graph
+def load_json(p: Path) -> Dict[str, Any]:
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
-def build_llm_inputs(graph: dict, top_k_nodes: int = 12, top_k_edges: int = 30):
-    """
-    把 scene graph 压缩成几行字符串，给 LLM 当输入。
-    """
-    nodes = graph.get("nodes", [])
-    edges = graph.get("edges", [])
-
-    # 只取前 top_k_nodes 个节点，按出现次数排序
-    nodes_sorted = sorted(nodes, key=lambda x: -x.get("count", 0))[:top_k_nodes]
-    nodes_for_llm = [f'{n["label"]}×{n.get("count", 1)}' for n in nodes_sorted]
-
-    # 只取前 top_k_edges 条边，按 count 排
-    edges_sorted = sorted(edges, key=lambda x: -x.get("count", 0))[:top_k_edges]
-    rel_for_llm = [
-        f'{e["s"]} —{e["r"]}→ {e["o"]} (×{e.get("count", 1)})'
-        for e in edges_sorted
-    ]
-
-    return nodes_for_llm, rel_for_llm
-
-
-def try_init_llm():
-    """
-    优先使用你仓库里的 LLM 封装 LLM.prompt.LLMPrompter，
-    模型默认设成 gpt-4o-mini，用一个很轻量的节流逻辑。
-    """
+def try_load_json(p: Path) -> Optional[Dict[str, Any]]:
+    if not p.exists():
+        return None
     try:
-        from LLM.prompt import LLMPrompter
-
-        class ThrottledPrompter(LLMPrompter):
-            def __init__(self, *args, rpm_cap=10, **kwargs):
-                # rpm_cap：每分钟最大请求数，调大可以更快
-                super().__init__(*args, **kwargs)
-                self.min_interval = 60.0 / max(1, rpm_cap)
-                self._last = 0.0
-
-            def query(self, *a, **k):
-                # 简单节流，避免触发速率限制
-                wait = self.min_interval - (time.time() - self._last)
-                if wait > 0:
-                    time.sleep(wait)
-                out = super().query(*a, **k)
-                self._last = time.time()
-                return out
-
-        api_key = os.getenv("OPENAI_API_KEY")
-        assert api_key, "未检测到 OPENAI_API_KEY 环境变量"
-
-        llm = ThrottledPrompter(
-            gpt_version="gpt-4o-mini",  # 小模型：更快更便宜
-            api_key=api_key,
-        )
-        print("✅ 使用 LLM.prompt (gpt-4o-mini) 生成解释")
-        return llm
-
-    except Exception as e:
-        print("[WARN] LLM.prompt 不可用，改用本地兜底解释。原因:", e)
+        return load_json(p)
+    except Exception:
         return None
 
 
-def build_prompts(nodes_for_llm, rel_for_llm):
+def normalize_label(s: str) -> str:
+    return (s or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def load_scene_graph(video_root: Path) -> Dict[str, Any]:
+    p = video_root / "yolo_scene_graph.json"
+    if not p.exists():
+        raise FileNotFoundError(f"Missing {p} (run Vid-B first)")
+    return load_json(p)
+
+
+def extract_labels_and_counts(graph: Dict[str, Any]) -> Tuple[List[str], Dict[str, int]]:
+    nodes = graph.get("nodes", []) or []
+    labels: List[str] = []
+    counts: Dict[str, int] = {}
+    for n in nodes:
+        lb = normalize_label(n.get("label", ""))
+        if not lb:
+            continue
+        labels.append(lb)
+        try:
+            counts[lb] = counts.get(lb, 0) + int(n.get("count", 1) or 1)
+        except Exception:
+            counts[lb] = counts.get(lb, 0) + 1
+    return labels, counts
+
+
+def best_match_count(counts: Dict[str, int], target: str) -> int:
+    t = normalize_label(target)
+    best = 0
+    for lb, c in counts.items():
+        if (t == lb) or (t in lb) or (lb in t):
+            best = max(best, int(c))
+    return best
+
+
+def gate_passed(labels: List[str], gate_any: List[str]) -> bool:
+    if not gate_any:
+        return True
+    gate_norm = [normalize_label(x) for x in gate_any if str(x).strip()]
+    for g in gate_norm:
+        if any((g == lb) or (g in lb) or (lb in g) for lb in labels):
+            return True
+    return False
+
+
+def find_task_windows_root(video_root: Path) -> Path:
     """
-    优化过的 prompt，贴近你的实验场景：
-      - 桌面、厨务场景
-      - 强调人 / 工具 / 容器 / 食物
-      - 2–3 条 bullet，第一人称、非技术表达
+    video_root can be:
+      - <task_id>
+      - <task_id>/windows/w000090
+    We store state under <task_id>/windows/.detector_state.json
     """
-    sys_prompt = (
-        "You are the verbal module of a home-assistant robot. "
-        "You are talking to a non-technical user while they watch the robot work at a table.\n"
-        "\n"
-        "You receive a coarse scene graph (objects and spatial relations) from the camera. "
-        "Using ONLY this information, briefly explain what you currently see.\n"
-        "\n"
-        "Guidelines:\n"
-        "  - Speak in FIRST PERSON as the robot (use 'I').\n"
-        "  - Use simple, friendly language, no technical terms "
-        "    (do NOT mention 'bounding boxes', 'scores', 'graph', or 'detections').\n"
-        "  - Focus on: the person, tools (knife, fork, spoon), containers "
-        "    (cup, bowl, mug, bottle), and food items (fruit, apple, banana, cereal, milk).\n"
-        "  - If a person is NEAR or HOLDING a tool or container, make that the main point.\n"
-        "  - If a tool is near a food item on a table (e.g., knife near apple), mention that "
-        "    as what I seem to be preparing.\n"
-        "  - Keep it SHORT: 2–3 bullet points maximum.\n"
-        "  - Do NOT guess about success or failure of the task, and do NOT apologize. "
-        "    Just describe what I see and what I seem to be doing.\n"
-    )
-
-    user_prompt = (
-        "Here is the scene graph summary from my camera.\n\n"
-        "Objects (top-k):\n"
-        "  - " + "\n  - ".join(nodes_for_llm or ["(none)"]) + "\n\n"
-        "Relationships (sampled edges):\n"
-        "  - " + "\n  - ".join(rel_for_llm or ["(none)"]) + "\n\n"
-        "Please respond with 2–3 bullet points in plain English."
-    )
-
-    return sys_prompt, user_prompt
+    if video_root.name.startswith("w") and video_root.parent.name == "windows":
+        return video_root.parent
+    # full mode
+    return video_root / "windows"
 
 
-def llm_explain_scene(llm, nodes_for_llm, rel_for_llm, save_dir: Path):
-    sys_prompt, user_prompt = build_prompts(nodes_for_llm, rel_for_llm)
-    prompt = {"system": sys_prompt, "user": user_prompt}
-
-    # 为了速度，max_tokens 不要太大
-    text, _ = llm.query(
-        prompt=prompt,
-        sampling_params={
-            "temperature": 0.2,
-            "max_tokens": 160,
-        },
-        save=False,
-        save_dir=str(save_dir),
-    )
-    return text.strip()
+def load_state(state_path: Path) -> Dict[str, Any]:
+    st = try_load_json(state_path)
+    if not st:
+        return {"missing_streak": 0, "last_update": 0.0}
+    if "missing_streak" not in st:
+        st["missing_streak"] = 0
+    return st
 
 
-def fallback_explanation(nodes_for_llm, rel_for_llm):
-    """
-    没有 LLM 时的兜底解释：不用网络，保证流程能跑完。
-    """
-    if not nodes_for_llm and not rel_for_llm:
-        return (
-            "• I can’t confidently recognize what is on the table from this view.\n"
-            "• I will keep observing and adjusting as I work."
-        )
+def save_state(state_path: Path, st: Dict[str, Any]):
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(json.dumps(st, indent=2), encoding="utf-8")
 
-    lines = []
-    if nodes_for_llm:
-        lines.append("• I can see: " + ", ".join(nodes_for_llm) + ".")
-    if rel_for_llm:
-        # 只展示少量关系，避免太啰嗦
-        lines.append("• Some important spatial relations: " + "; ".join(rel_for_llm[:3]) + ".")
+
+def detect_missing_object(
+    graph: Dict[str, Any],
+    watch_object: str,
+    empty_frame_ratio: Optional[float],
+    require_empty_ratio_le: float,
+    min_total_nodes: int,
+    gate_any: List[str],
+    present_count_ge: int,
+    confirm_k: int,
+    state_path: Path,
+) -> Tuple[bool, str, Dict[str, Any]]:
+    labels, counts = extract_labels_and_counts(graph)
+    total_nodes = len(labels)
+
+    watch_count = best_match_count(counts, watch_object)
+    present = (watch_count >= int(present_count_ge))
+
+    cam_ok = True
+    if empty_frame_ratio is not None:
+        cam_ok = (float(empty_frame_ratio) <= float(require_empty_ratio_le))
+
+    gate_ok = gate_passed(labels, gate_any)
+
+    # NOTE: min_total_nodes is now SOFT (won't block); we only record it
+    enough_context = (total_nodes >= int(min_total_nodes))
+
+    debug = {
+        "watch_object": watch_object,
+        "watch_count": watch_count,
+        "present_count_ge": int(present_count_ge),
+        "present": present,
+        "total_nodes": total_nodes,
+        "min_total_nodes": int(min_total_nodes),
+        "enough_context": enough_context,
+        "empty_frame_ratio": empty_frame_ratio,
+        "require_empty_ratio_le": float(require_empty_ratio_le),
+        "cam_ok": cam_ok,
+        "gate_presence_any": gate_any,
+        "gate_ok": gate_ok,
+        "confirm_k": int(confirm_k),
+        "state_path": str(state_path),
+        "labels_top": labels[:25],
+    }
+
+    # Hard gates: if fail, do NOT trigger and reset streak
+    st = load_state(state_path)
+    if not gate_ok:
+        st["missing_streak"] = 0
+        st["last_update"] = time.time()
+        save_state(state_path, st)
+        debug["missing_streak"] = st["missing_streak"]
+        return False, "missing_object: gate not passed", debug
+
+    if not cam_ok:
+        st["missing_streak"] = 0
+        st["last_update"] = time.time()
+        save_state(state_path, st)
+        debug["missing_streak"] = st["missing_streak"]
+        return False, "missing_object: camera too empty (empty_frame_ratio high)", debug
+
+    # Missing logic + streak
+    if not present:
+        st["missing_streak"] = int(st.get("missing_streak", 0)) + 1
     else:
-        lines.append("• I don't detect any strong spatial relations between objects yet.")
-    return "\n".join(lines)
+        st["missing_streak"] = 0
+
+    st["last_update"] = time.time()
+    save_state(state_path, st)
+
+    debug["missing_streak"] = st["missing_streak"]
+
+    if not present:
+        if st["missing_streak"] >= int(confirm_k):
+            # Confirmed error
+            extra = ""
+            if not enough_context:
+                extra = " (context low but allowed)"
+            return True, f"missing_object: '{watch_object}' missing (streak={st['missing_streak']}/{confirm_k}){extra}", debug
+        else:
+            return False, f"missing_object: missing but waiting confirm_k (streak={st['missing_streak']}/{confirm_k})", debug
+
+    return False, "missing_object: not triggered (object considered present)", debug
+
+
+def detect_external_flag(video_root: Path, file: str, key: str) -> Tuple[bool, str, Dict[str, Any]]:
+    p = video_root / file
+    data = try_load_json(p)
+    if not data:
+        return False, f"external_flag: missing {file}", {"file": file, "key": key}
+    val = bool(data.get(key, False))
+    return val, f"external_flag: {key}={val}", {"file": file, "key": key, "value": data.get(key, None)}
 
 
 def main():
-    # ====== 1) 解析视频目录 ======
-    if len(sys.argv) > 1:
-        video_root = Path(sys.argv[1]).resolve()
-    else:
-        # 默认：水果切割 demo
-        video_root = Path("./camera_demo_fruit").resolve()
+    if len(sys.argv) < 3:
+        raise SystemExit("Usage: python Vid-C.py <experiment_yaml> <video_root>")
 
-    print(f"📂 Vid-C 使用视频目录: {video_root}")
-    graph_path, graph = load_scene_graph(video_root)
+    yaml_path = Path(sys.argv[1]).resolve()
+    video_root = Path(sys.argv[2]).resolve()
 
-    # ====== 2) 准备 LLM 输入 ======
-    nodes_for_llm, rel_for_llm = build_llm_inputs(graph)
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
+    meta = cfg.get("meta", {}) or {}
+    det = cfg.get("detector", {}) or {}
 
-    # ====== 3) 初始化 LLM（如果可用） ======
-    llm = try_init_llm()
+    det_type = (det.get("type") or "never").strip().lower()
 
-    # ====== 4) 生成解释 ======
-    if llm is not None:
-        try:
-            text = llm_explain_scene(llm, nodes_for_llm, rel_for_llm, save_dir=video_root.parent)
-        except Exception as e:
-            print("[WARN] 调用 LLM 失败，改用兜底解释。原因:", e)
-            text = fallback_explanation(nodes_for_llm, rel_for_llm)
-    else:
-        text = fallback_explanation(nodes_for_llm, rel_for_llm)
+    # Optional empty ratio
+    yolo_nodes = try_load_json(video_root / "yolo_nodes.json")
+    empty_frame_ratio = None
+    if yolo_nodes and isinstance(yolo_nodes, dict):
+        empty_frame_ratio = yolo_nodes.get("empty_frame_ratio", None)
 
-    # ====== 5) 保存到文本文件 ======
-    out_txt = video_root / "yolo_scene_explanation.txt"
-    out_txt.write_text(text, encoding="utf-8")
+    error_confirmed = False
+    reason = ""
+    debug: Dict[str, Any] = {"detector_type": det_type}
 
-    print("\n=== LLM (user-facing) explanation ===")
-    print(text)
-    print("\nSaved:", out_txt)
+    try:
+        if det_type in ("none", "never", ""):
+            error_confirmed = False
+            reason = "detector=never"
+
+        elif det_type == "always":
+            error_confirmed = True
+            reason = "detector=always"
+
+        elif det_type == "missing_object":
+            watch = det.get("watch_object", "")
+            if det.get("watch_object_from_meta"):
+                meta_key = str(det.get("watch_object_from_meta"))
+                watch = meta.get(meta_key, watch)
+
+            watch = (watch or "").strip()
+            if not watch:
+                error_confirmed = False
+                reason = "missing_object: watch_object not set"
+            else:
+                graph = load_scene_graph(video_root)
+                gate_any = list(det.get("gate_presence_any", []) or [])
+                require_empty_ratio_le = float(det.get("require_empty_ratio_le", 0.9))
+                min_total_nodes = int(det.get("min_total_nodes", 1))
+                present_count_ge = int(det.get("present_count_ge", 1))
+                confirm_k = int(det.get("confirm_k", 1))
+                state_file = str(det.get("state_file", ".detector_state.json"))
+
+                windows_root = find_task_windows_root(video_root)
+                state_path = windows_root / state_file
+
+                error_confirmed, reason, d2 = detect_missing_object(
+                    graph=graph,
+                    watch_object=watch,
+                    empty_frame_ratio=empty_frame_ratio,
+                    require_empty_ratio_le=require_empty_ratio_le,
+                    min_total_nodes=min_total_nodes,
+                    gate_any=gate_any,
+                    present_count_ge=present_count_ge,
+                    confirm_k=confirm_k,
+                    state_path=state_path,
+                )
+                debug.update(d2)
+
+        elif det_type == "external_flag":
+            file = str(det.get("file", "robot_error.json"))
+            key = str(det.get("key", "error_confirmed"))
+            error_confirmed, reason, d2 = detect_external_flag(video_root, file=file, key=key)
+            debug.update(d2)
+
+        else:
+            error_confirmed = False
+            reason = f"unknown detector type: {det_type}"
+
+    except Exception as e:
+        error_confirmed = False
+        reason = f"detector exception: {e}"
+
+    runlog = {
+        "config": str(yaml_path),
+        "task_id": meta.get("task_id"),
+        "error_confirmed": bool(error_confirmed),
+        "reason": reason,
+        "empty_frame_ratio": empty_frame_ratio,
+        "debug": debug,
+        "ts": time.time(),
+    }
+    out = video_root / "vid_c_runlog.json"
+    out.write_text(json.dumps(runlog, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    print(f"✅ Vid-C detector: error_confirmed={error_confirmed} ({reason})")
+    print("Runlog:", out)
 
 
 if __name__ == "__main__":

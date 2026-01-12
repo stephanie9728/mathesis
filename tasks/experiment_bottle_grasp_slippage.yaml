@@ -1,0 +1,20 @@
+meta:
+  task_id: bottle_grasp_slippage
+  task_name: Place Bottle – Grasp Slippage During Lifting
+  goal_en: Pick up a plastic bottle from the table and place it on the shelf.
+  error_type: observable
+  expected_tool: null
+
+tools:
+  candidates: []
+  correct: null
+
+llm:
+  mode: slotfill
+  possible_causes:
+    - it slipped
+    - it was unstable
+  recovery_actions:
+    - hold it more firmly
+    - lift it more slowly
+

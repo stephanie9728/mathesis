@@ -1,0 +1,2 @@
+- I see a knife on the table, ready for use.  
+- There are several drawers nearby, but they are not currently being interacted with.

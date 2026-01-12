@@ -1,0 +1,15 @@
+{
+  "config": "/home/ru53kem/Projects/mathesis/tasks/_tmp_run.yaml",
+  "task_name": "Pick Knife \u2013 Knife Not in First Drawer",
+  "error_type": "non_observable",
+  "explanation_timing": "immediate",
+  "action": "perform",
+  "object": "object",
+  "llm_used": true,
+  "reason": "LLM output accepted (streaming).",
+  "explanation": "I couldn\u2019t perform the object because the drawer was empty. I will try opening the second one.",
+  "tts": {
+    "explanation_ready_time": 1768064661.9666214
+  },
+  "speak_mode": "never"
+}

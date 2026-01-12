@@ -1,0 +1,29 @@
+pc2:
+  ip: 10.163.18.109
+  zmq_port: 5555
+  tcp_port: 5001
+
+experiments:
+  fork_flat:
+    task_id: fork_grasp_feasibility_uncertainty
+    robot_cmd: [rosrun, ros-movement-control, test_fork.py]
+    seg_a_id: "..."
+    seg_b_id: "..."
+
+  bottle:
+    task_id: bottle_grasp_slippage
+    robot_cmd: [rosrun, ros-movement-control, test_bottle.py]
+    seg_a_id: "..."
+    seg_b_id: "..."
+
+  path:
+    task_id: path_obstruction_cup_transport
+    robot_cmd: [rosrun, ros-movement-control, test_path.py]
+    seg_a_id: "..."
+    seg_b_id: "..."
+
+  drawer:
+    task_id: missing_knife_two_drawers
+    robot_cmd: [rosrun, ros-movement-control, test_one_segment.py]
+    seg_a_id: "6953b3ea3a71d98148ae5441"
+    seg_b_id: "695fbc363bb2856a3a69e535"

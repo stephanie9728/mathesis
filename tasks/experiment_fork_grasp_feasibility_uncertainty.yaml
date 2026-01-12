@@ -1,0 +1,19 @@
+meta:
+  task_id: fork_grasp_feasibility_uncertainty
+  task_name: Pick Fork – Fork Too Flat for Stable Grasp
+  goal_en: Pick up the fork from the table and hold it in front of the camera.
+  error_type: non_observable
+  expected_tool: null
+
+tools:
+  candidates: []
+  correct: null
+
+llm:
+  mode: slotfill
+  possible_causes:
+    - it was too flat
+    - I could not get a stable grip
+  recovery_actions:
+    - adjust my grip
+    - try a different angle
