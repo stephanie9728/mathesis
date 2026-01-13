@@ -1,0 +1,38 @@
+{
+  "config": "/home/ru53kem/Projects/mathesis/tasks/_tmp_run.yaml",
+  "task_id": "missing_apple_blindspot_plate",
+  "error_confirmed": false,
+  "reason": "missing_object: not triggered (object considered present)",
+  "empty_frame_ratio": 0.0,
+  "debug": {
+    "detector_type": "missing_object",
+    "watch_object": "apple",
+    "watch_count": 2,
+    "present_count_ge": 2,
+    "present": true,
+    "total_nodes": 4,
+    "min_total_nodes": 3,
+    "enough_context": true,
+    "empty_frame_ratio": 0.0,
+    "require_empty_ratio_le": 0.8,
+    "cam_ok": true,
+    "gate_presence_any": [
+      "plate",
+      "banana",
+      "bell_pepper",
+      "apple",
+      "table"
+    ],
+    "gate_ok": true,
+    "confirm_k": 2,
+    "state_path": "/home/ru53kem/Projects/mathesis/missing_apple_blindspot_plate/windows/.detector_state.json",
+    "labels_top": [
+      "apple",
+      "banana",
+      "plate",
+      "obstacle"
+    ],
+    "missing_streak": 0
+  },
+  "ts": 1768300650.4785972
+}

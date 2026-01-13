@@ -1,0 +1,37 @@
+{
+  "task_id": "missing_knife_two_drawers",
+  "video_root": "/home/ru53kem/Projects/mathesis/missing_knife_two_drawers/windows/w000420",
+  "generator": "GroundingDINO",
+  "prompt": "knife . drawer . top drawer . bottom drawer . table . hand",
+  "keywords": [
+    "knife",
+    "drawer",
+    "top drawer",
+    "bottom drawer",
+    "table",
+    "hand"
+  ],
+  "params": {
+    "max_frames": 150,
+    "frame_stride": 10,
+    "box_thresh": 0.35,
+    "text_thresh": 0.25
+  },
+  "sampled_frames": 3,
+  "empty_frame_ratio": 0.3333333333333333,
+  "nodes": [
+    {
+      "label": "drawer",
+      "count": 6
+    },
+    {
+      "label": "table",
+      "count": 2
+    },
+    {
+      "label": "knife",
+      "count": 1
+    }
+  ],
+  "edges": []
+}

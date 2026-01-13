@@ -47,8 +47,8 @@ TASK_PROMPTS = {
     "bottle_grasp_slippage": (
         "bottle . plastic bottle . table . shelf . hand"
     ),
-    "path_obstruction_cup_transport": (
-        "cup . tray . table . obstacle . hand"
+    "missing_apple_blindspot_plate": (
+        "apple . plate . banana . obstacle . hand"
     ),
 }
 

@@ -2,6 +2,7 @@ meta:
   task_id: missing_knife_two_drawers
   task_name: Pick Knife – Knife Not in First Drawer
   error_type: non_observable
+  action: retrieve
   object: knife
 
 detector:
@@ -13,10 +14,14 @@ detector:
     - drawer
     - cabinet
     - handle
+    - knife
   present_count_ge: 2
   confirm_k: 2
 
-
+controller:
+  window_warmup: 60
+  window_stride: 30
+  window_size: 30
 
 tools:
   candidates: []
@@ -24,6 +29,7 @@ tools:
 
 llm:
   mode: slotfill
+  model: gpt-4o-mini
 
   goal_en: >
     Help the user retrieve a knife from a drawer and present it.
@@ -34,4 +40,6 @@ llm:
 
   task_context: >
     The robot searches the drawers to locate the knife in order to assist the user.
-    The absence of the knife in the first drawer is not directly visible to the user.
+    The absence of the knife in the drawer is not directly visible to the user.
+
+  

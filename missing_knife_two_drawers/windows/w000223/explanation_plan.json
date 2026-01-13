@@ -1,0 +1,38 @@
+{
+  "task_id": "missing_knife_two_drawers",
+  "task_name": "Pick Knife – Knife Not in First Drawer",
+  "goal_en": "",
+  "error_type": "non_observable",
+  "observability": "non_observable",
+  "inputs": {
+    "llm_hint": "",
+    "vidb_source": "yolo_nodes.json",
+    "detected_objects_summary": [
+      "drawer(5)",
+      "hand(3)",
+      "table(2)"
+    ],
+    "empty_frame_ratio": 0.0
+  },
+  "cause": {
+    "summary": "I expected the object to be in a certain place, but it wasn’t there, so I wasn’t sure of its location.",
+    "evidence": [
+      "The first attempt did not find the expected object in the initial location.",
+      "This suggests my prior assumption about the object’s location was incorrect.",
+      "Visible context included: drawer(5), hand(3), table(2)",
+      "Frames with no detections ratio: 0.00"
+    ]
+  },
+  "recovery": {
+    "summary": "A step-by-step plan to resolve the issue and complete the goal.",
+    "steps": [
+      "Stop the current attempt and reassess where the object might be.",
+      "Search an alternative location (e.g., another drawer/area).",
+      "Once found, grasp the object and present it to the camera."
+    ]
+  },
+  "user_facing": {
+    "immediate_script": "I expected it to be here, but I’m not finding it. I’ll check another place next.",
+    "post_recovery_script": "I initially expected it to be in the first place I checked, but it wasn’t there. After updating that assumption, I searched another location and then completed the task."
+  }
+}

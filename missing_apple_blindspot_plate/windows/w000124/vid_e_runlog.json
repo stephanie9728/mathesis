@@ -1,0 +1,16 @@
+{
+  "config": "/home/ru53kem/Projects/mathesis/tasks/_tmp_run.yaml",
+  "task_name": "Pick Apple \u2013 Apple Outside Initial View (Blind Spot)",
+  "error_type": "observable",
+  "explanation_timing": "immediate",
+  "action": "retrieve",
+  "object": "apple",
+  "error_confirmed": false,
+  "error_flag_source": "vid_c_runlog.json:error_confirmed",
+  "llm_used": false,
+  "reason": "error_confirmed==False -> no explanation",
+  "explanation": "",
+  "tts": {},
+  "speak_mode": "never",
+  "ts": 1768301029.2271943
+}

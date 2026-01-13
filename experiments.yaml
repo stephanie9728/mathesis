@@ -16,9 +16,9 @@ experiments:
     seg_a_id: "..."
     seg_b_id: "..."
 
-  path:
-    task_id: path_obstruction_cup_transport
-    robot_cmd: [rosrun, ros-movement-control, test_path.py]
+  apple:
+    task_id: missing_apple_blindspot_plate
+    robot_cmd: [rosrun, ros-movement-control, test_one_segment.py]
     seg_a_id: "..."
     seg_b_id: "..."
 

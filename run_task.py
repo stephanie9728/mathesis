@@ -43,11 +43,19 @@ def count_frames(frames_dir: Path) -> int:
     return len(list(frames_dir.glob("*.png")))
 
 
+def safe_send_say(say, text: str, task_id: str, phase: str) -> None:
+    try:
+        say.send_say(text, task_id, phase)
+    except Exception as e:
+        print(f"⚠️ send_say failed (ignored): {e}", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("task_id")
-    ap.add_argument("timing")
+    ap.add_argument("timing")       # none / immediate / post_recovery
     ap.add_argument("participant")
+    ap.add_argument("--speak_phase", default="", help="immediate or post_recovery (controls prompt style)")
 
     ap.add_argument("--mode", default="full", choices=["full", "window"])
     ap.add_argument("--window_end", type=int, default=0, help="1-based frame index (e.g., 90 means up to 000089.png)")
@@ -57,11 +65,32 @@ def main():
     ap.add_argument("--final_window", action="store_true",
                     help="treat this window as the final fallback window")
 
+    # remote audio config (PC1 endpoint)
+    ap.add_argument("--pc1_audio", default="tcp://10.163.18.91:5557",
+                    help="PC1 audio listener endpoint (PULL on PC1)")
+
     args = ap.parse_args()
 
     task_id = args.task_id
     timing = args.timing
     participant = args.participant
+    def already_spoken(video_root: Path, phase: str) -> bool:
+        return (video_root / f".spoken_{phase}.flag").exists()
+
+    def mark_spoken(video_root: Path, phase: str) -> None:
+        (video_root / f".spoken_{phase}.flag").write_text("1", encoding="utf-8")
+
+
+    # ---------------- Audio: PC2 only sends SAY to PC1 ----------------
+    say = None
+    if timing != "none":
+        try:
+            from audio_send_say import SayClient
+            say = SayClient(args.pc1_audio)
+        except Exception as e:
+            # audio is non-critical; keep pipeline running
+            print(f"⚠️ Audio disabled (SayClient init failed): {e}", flush=True)
+            say = None
 
     ROOT = Path(__file__).parent.resolve()
     TASKS_DIR = ROOT / "tasks"
@@ -79,6 +108,9 @@ def main():
     cfg["meta"]["explanation_timing"] = timing
     cfg["meta"]["participant_id"] = participant
     cfg["meta"]["final_window"] = bool(args.final_window)
+    if args.speak_phase:
+        cfg["meta"]["speak_phase"] = args.speak_phase
+
 
     yaml_tmp = TASKS_DIR / "_tmp_run.yaml"
     yaml_tmp.write_text(yaml.dump(cfg, allow_unicode=True), encoding="utf-8")
@@ -138,11 +170,39 @@ def main():
     # Vid-E: rc=10 is NORMAL (no error detected)
     rc_e = run_stage([py, "Vid-E.py", str(yaml_tmp), str(video_root)], cwd=ROOT, must_succeed=False)
 
+    # ---------- 5) When to speak ----------
+    # Convention used here:
+    # - immediate: speak when error is found (this run)
+    # - post_recovery: speak ONLY when this run is flagged as final_window
+    def maybe_speak(txt: str):
+        if not say:
+            return
+        if not txt or txt.strip() == "" or txt.strip() == "[NO EXPLANATION]":
+            return
+
+        # speak-once gate
+        phase = "immediate" if timing == "immediate" else "post_recovery"
+        if already_spoken(base_video_root, phase):
+            return
+
+        if timing == "immediate":
+            safe_send_say(say, txt, task_id, "immediate")
+            mark_spoken(base_video_root, "immediate")
+        elif timing == "post_recovery" and bool(args.final_window):
+            safe_send_say(say, txt, task_id, "post_recovery")
+            mark_spoken(base_video_root, "post_recovery")
+
+
     if rc_e == RC_ERROR_FOUND:
-        txt = (video_root / "explanation_text.txt").read_text(encoding="utf-8").strip() \
-            if (video_root / "explanation_text.txt").exists() else ""
+        txt_path = video_root / "explanation_text.txt"
+        txt = txt_path.read_text(encoding="utf-8").strip() if txt_path.exists() else ""
+
         if txt and txt != "[NO EXPLANATION]":
             print(txt)
+
+        # Speak according to timing policy
+        maybe_speak(txt)
+
         raise SystemExit(RC_ERROR_FOUND)
 
     if rc_e == RC_NO_ERROR:

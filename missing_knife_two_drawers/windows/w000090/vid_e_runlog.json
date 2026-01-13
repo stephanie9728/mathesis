@@ -1,0 +1,16 @@
+{
+  "config": "/home/ru53kem/Projects/mathesis/tasks/_tmp_run.yaml",
+  "task_name": "Pick Knife \u2013 Knife Not in First Drawer",
+  "error_type": "non_observable",
+  "explanation_timing": "immediate",
+  "action": "perform",
+  "object": "knife",
+  "error_confirmed": false,
+  "error_flag_source": "vid_c_runlog.json:error_confirmed",
+  "llm_used": false,
+  "reason": "error_confirmed==False -> no explanation",
+  "explanation": "",
+  "tts": {},
+  "speak_mode": "never",
+  "ts": 1768224730.7701042
+}

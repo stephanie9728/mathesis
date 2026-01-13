@@ -1,0 +1,38 @@
+{
+  "task_id": "missing_apple_blindspot_plate",
+  "task_name": "Pick Apple – Apple Outside Initial View (Blind Spot)",
+  "goal_en": "",
+  "error_type": "observable",
+  "observability": "observable",
+  "inputs": {
+    "llm_hint": "",
+    "vidb_source": "yolo_nodes.json",
+    "detected_objects_summary": [
+      "banana(3)",
+      "plate(3)",
+      "obstacle(1)"
+    ],
+    "empty_frame_ratio": 0.0
+  },
+  "cause": {
+    "summary": "Something in the environment or my motion execution caused the failure during the task.",
+    "evidence": [
+      "A visible interruption occurred during motion (e.g., blockage or slippage).",
+      "The robot paused and adjusted its action to continue safely.",
+      "Visible context included: banana(3), plate(3), obstacle(1)",
+      "Frames with no detections ratio: 0.00"
+    ]
+  },
+  "recovery": {
+    "summary": "A step-by-step plan to resolve the issue and complete the goal.",
+    "steps": [
+      "Pause to avoid compounding the failure.",
+      "Adjust the action (replan path / adjust grasp / retry).",
+      "Continue the motion and complete the placement/presentation."
+    ]
+  },
+  "user_facing": {
+    "immediate_script": "Something interfered with my motion, so I’m going to pause and adjust before continuing.",
+    "post_recovery_script": "An unexpected issue happened during the motion, so I paused and adjusted my action. After correcting it, I continued and finished the task."
+  }
+}
