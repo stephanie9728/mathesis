@@ -35,6 +35,7 @@ meta:
   final_window: false
   object: apple
   participant_id: P01
+  speak_phase: post_recovery
   task_id: missing_apple_blindspot_plate
   task_name: Pick Apple – Apple Outside Initial View (Blind Spot)
 tools:
