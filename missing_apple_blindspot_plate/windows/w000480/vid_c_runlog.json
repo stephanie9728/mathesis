@@ -1,0 +1,40 @@
+{
+  "config": "/home/ru53kem/Projects/mathesis/tasks/_tmp_run.yaml",
+  "task_id": "missing_apple_blindspot_plate",
+  "error_type": "observable",
+  "object": "apple",
+  "error_confirmed": false,
+  "reason": "missing_object: gate not passed",
+  "empty_frame_ratio": 0.0,
+  "debug": {
+    "detector_type": "missing_object",
+    "watch_targets": [
+      "apple"
+    ],
+    "matched_target": "apple",
+    "watch_count": 3,
+    "present_count_ge": 1,
+    "present": true,
+    "total_nodes": 2,
+    "min_total_nodes": 1,
+    "enough_context": true,
+    "empty_frame_ratio": 0.0,
+    "require_empty_ratio_le": 0.9,
+    "cam_ok": true,
+    "gate_presence_any": [
+      "plate",
+      "banana",
+      "table"
+    ],
+    "gate_ok": false,
+    "confirm_k": 1,
+    "state_path": "/home/ru53kem/Projects/mathesis/missing_apple_blindspot_plate/windows/.detector_state.json",
+    "labels_top": [
+      "apple",
+      "obstacle"
+    ],
+    "missing_streak": 0,
+    "label_aliases": {}
+  },
+  "ts": 1768402905.483906
+}

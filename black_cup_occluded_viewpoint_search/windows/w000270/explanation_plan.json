@@ -1,0 +1,37 @@
+{
+  "task_id": "black_cup_occluded_viewpoint_search",
+  "task_name": "Pick Black Cup – Black Cup Hidden and Blocked (Non-observable)",
+  "goal_en": "",
+  "error_type": "non_observable",
+  "observability": "non_observable",
+  "inputs": {
+    "llm_hint": "",
+    "vidb_source": "yolo_nodes.json",
+    "detected_objects_summary": [
+      "cup(7)",
+      "table(3)"
+    ],
+    "empty_frame_ratio": 0.0
+  },
+  "cause": {
+    "summary": "I expected the object to be in a certain place, but it wasn’t there, so I wasn’t sure of its location.",
+    "evidence": [
+      "The first attempt did not find the expected object in the initial location.",
+      "This suggests my prior assumption about the object’s location was incorrect.",
+      "Visible context included: cup(7), table(3)",
+      "Frames with no detections ratio: 0.00"
+    ]
+  },
+  "recovery": {
+    "summary": "A step-by-step plan to resolve the issue and complete the goal.",
+    "steps": [
+      "Stop the current attempt and reassess where the object might be.",
+      "Search an alternative location (e.g., another drawer/area).",
+      "Once found, grasp the object and present it to the camera."
+    ]
+  },
+  "user_facing": {
+    "immediate_script": "I expected it to be here, but I’m not finding it. I’ll check another place next.",
+    "post_recovery_script": "I initially expected it to be in the first place I checked, but it wasn’t there. After updating that assumption, I searched another location and then completed the task."
+  }
+}

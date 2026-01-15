@@ -1,0 +1,17 @@
+{
+  "task_id": "bottle_behind_drawer_replan",
+  "video_root": "/home/ru53kem/Projects/mathesis/bottle_behind_drawer_replan/windows/w000150",
+  "error_confirmed": true,
+  "explanation_timing": "immediate",
+  "error_type": "observable",
+  "llm_model": "gpt-4o-mini",
+  "words_min": 50,
+  "words_max": 80,
+  "sent_min": 3,
+  "sent_max": 3,
+  "attempt_1": "no_response",
+  "attempt_2": "no_response",
+  "attempt_3": "no_response",
+  "attempt_4": "no_response",
+  "fallback_used": true
+}

@@ -1,0 +1,36 @@
+{
+  "task_id": "bottle_behind_drawer_replan",
+  "video_root": "/home/ru53kem/Projects/mathesis/bottle_behind_drawer_replan/windows/w000060",
+  "generator": "GroundingDINO",
+  "prompt": "bottle . black bottle . white shelf . table . shelf . hand",
+  "keywords": [
+    "bottle",
+    "black bottle",
+    "white shelf",
+    "table",
+    "shelf",
+    "hand"
+  ],
+  "params": {
+    "max_frames": 150,
+    "frame_stride": 10,
+    "box_thresh": 0.35,
+    "text_thresh": 0.25
+  },
+  "sampled_frames": 3,
+  "empty_frame_ratio": 0.0,
+  "nodes": [
+    {
+      "label": "bottle",
+      "count": 6
+    },
+    {
+      "label": "shelf",
+      "count": 6
+    },
+    {
+      "label": "table",
+      "count": 3
+    }
+  ]
+}

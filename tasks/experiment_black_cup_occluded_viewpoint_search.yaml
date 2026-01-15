@@ -1,0 +1,44 @@
+meta:
+  task_id: black_cup_occluded_viewpoint_search
+  task_name: Pick Black Cup – Black Cup Hidden and Blocked (Non-observable)
+  error_type: non_observable
+  action: retrieve
+  object: black_cup
+
+detector:
+  type: always
+  watch_object_from_meta: object
+  label_aliases:
+    black_bottle: [cup]
+  gate_presence_any: []          
+  present_count_ge: 1
+  confirm_k: 2                  
+  require_empty_ratio_le: 0.95
+  min_total_nodes: 1
+
+controller:
+  window_warmup: 90
+  window_stride: 30
+  window_size: 90
+
+tools:
+  candidates: []
+  correct: black_cup
+
+llm:
+  mode: slotfill
+  model: gpt-4o-mini
+
+  goal_en: >
+    Help the user retrieve the black cup (among five cups) and present it.
+
+  scene_description: >
+    The scene contains five cups on a table: four green cups and one black cup.
+    From the user’s viewpoint, the black cup is not visible and the user can only see one or two green cups.
+    The black cup is positioned among the green cups, which makes it hard to pull out from some angles.
+
+  task_context: >
+    The user cannot see the black cup or the full cup arrangement, so the cause of the difficulty is not visible.
+    The robot first attempts from an angle where the black cup is blocked by surrounding cups and cannot be retrieved.
+    The robot recovers by changing viewpoint/approach to access the black cup, then grasps it and presents it.
+    To the user, the main visible behavior is the robot repositioning before succeeding.

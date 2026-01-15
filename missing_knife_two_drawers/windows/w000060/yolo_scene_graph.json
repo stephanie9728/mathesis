@@ -23,14 +23,6 @@
     {
       "label": "drawer",
       "count": 9
-    },
-    {
-      "label": "table",
-      "count": 3
-    },
-    {
-      "label": "knife",
-      "count": 1
     }
   ],
   "edges": []

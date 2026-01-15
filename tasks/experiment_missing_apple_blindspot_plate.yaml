@@ -17,9 +17,9 @@ detector:
   present_count_ge: 1
 
 controller:
-  window_warmup: 30
-  window_stride: 30
-  window_size: 30
+  window_warmup: 90
+  window_stride: 90
+  window_size: 90
 
 
 tools:

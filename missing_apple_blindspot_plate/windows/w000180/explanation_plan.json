@@ -8,8 +8,7 @@
     "llm_hint": "",
     "vidb_source": "yolo_nodes.json",
     "detected_objects_summary": [
-      "obstacle(3)",
-      "plate(3)"
+      "obstacle(3)"
     ],
     "empty_frame_ratio": 0.0
   },
@@ -18,7 +17,7 @@
     "evidence": [
       "A visible interruption occurred during motion (e.g., blockage or slippage).",
       "The robot paused and adjusted its action to continue safely.",
-      "Visible context included: obstacle(3), plate(3)",
+      "Visible context included: obstacle(3)",
       "Frames with no detections ratio: 0.00"
     ]
   },

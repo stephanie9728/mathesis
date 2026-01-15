@@ -22,11 +22,7 @@
   "nodes": [
     {
       "label": "drawer",
-      "count": 3
-    },
-    {
-      "label": "table",
-      "count": 2
+      "count": 6
     }
   ]
 }

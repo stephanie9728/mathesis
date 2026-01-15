@@ -41,11 +41,11 @@ TASK_PROMPTS = {
     "missing_knife_two_drawers": (
         "knife . drawer . top drawer . bottom drawer . table . hand"
     ),
-    "fork_grasp_feasibility_uncertainty": (
-        "fork . table . hand"
+    "black_cup_occluded_viewpoint_search": (
+        "cup . green cup . black cup . table . hand"
     ),
-    "bottle_grasp_slippage": (
-        "bottle . plastic bottle . table . shelf . hand"
+    "bottle_behind_drawer_replan": (
+        "bottle . black bottle . white shelf . table . shelf . hand"
     ),
     "missing_apple_blindspot_plate": (
         "apple . plate . banana . obstacle . hand"

@@ -8,19 +8,18 @@
     "llm_hint": "",
     "vidb_source": "yolo_nodes.json",
     "detected_objects_summary": [
-      "drawer(10)",
-      "table(2)",
-      "hand(1)"
+      "drawer(3)",
+      "table(1)"
     ],
-    "empty_frame_ratio": 0.0
+    "empty_frame_ratio": 0.3333333333333333
   },
   "cause": {
     "summary": "I expected the object to be in a certain place, but it wasn’t there, so I wasn’t sure of its location.",
     "evidence": [
       "The first attempt did not find the expected object in the initial location.",
       "This suggests my prior assumption about the object’s location was incorrect.",
-      "Visible context included: drawer(10), table(2), hand(1)",
-      "Frames with no detections ratio: 0.00"
+      "Visible context included: drawer(3), table(1)",
+      "Frames with no detections ratio: 0.33"
     ]
   },
   "recovery": {

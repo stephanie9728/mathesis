@@ -20,16 +20,8 @@
   "empty_frame_ratio": 0.0,
   "nodes": [
     {
-      "label": "obstacle",
-      "count": 2
-    },
-    {
       "label": "apple",
-      "count": 1
-    },
-    {
-      "label": "plate",
-      "count": 1
+      "count": 3
     }
   ],
   "edges": []

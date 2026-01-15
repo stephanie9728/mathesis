@@ -1,0 +1,13 @@
+{
+  "config": "/home/ru53kem/Projects/mathesis/tasks/_tmp_run.yaml",
+  "task_id": "bottle_behind_drawer_replan",
+  "error_type": "observable",
+  "object": "black_bottle",
+  "error_confirmed": true,
+  "reason": "detector=always",
+  "empty_frame_ratio": 0.0,
+  "debug": {
+    "detector_type": "always"
+  },
+  "ts": 1768397216.6613636
+}

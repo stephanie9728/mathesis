@@ -22,15 +22,11 @@
   "nodes": [
     {
       "label": "drawer",
-      "count": 6
+      "count": 5
     },
     {
       "label": "table",
       "count": 2
-    },
-    {
-      "label": "knife",
-      "count": 1
     }
   ],
   "edges": []

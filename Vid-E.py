@@ -38,7 +38,7 @@ EXPLANATION_SENT_MIN = int(os.environ.get("VIDE_SENT_MIN", "3"))
 EXPLANATION_SENT_MAX = int(os.environ.get("VIDE_SENT_MAX", "3"))  # default exactly 3
 
 # kept for compatibility with older pipelines
-SPEAK_MODE = os.environ.get("VIDE_SPEAK_MODE", "never").lower()
+SPEAK_MODE = os.environ.get("VIDE_SPEAK_MODE", "speak").lower()
 
 # disallow generic filler explanations (add your own here)
 BANNED_PHRASES = [
@@ -130,7 +130,6 @@ The user cannot directly see the cause from the robot’s motion or the scene.
 Output exactly THREE short spoken sentences (total {MAX_WORDS_MIN}-{MAX_WORDS_MAX} words).
 
 Sentence 1:
-- Start with a very short attention cue (1–3 words), e.g., "One moment," / "Just a second,".
 - State what you were trying to do (action + object) and that it didn’t work.
 
 Sentence 2:
@@ -191,7 +190,6 @@ The user can see the cause from the scene or the robot’s behavior.
 Output exactly THREE short spoken sentences (total {MAX_WORDS_MIN}-{MAX_WORDS_MAX} words).
 
 Sentence 1:
-- Start with a very short attention cue (1–3 words), e.g., "One moment," / "Just a second,".
 - State what you were trying to do (action + object) and that it didn’t work.
 
 Sentence 2:
@@ -261,27 +259,94 @@ Context: {ctx}
 Write the explanation now.
 """.strip()
 
+from typing import Dict
+
 def fallback_explanation(meta: Dict[str, str]) -> str:
     """
-    Safe fallback if OpenAI is unavailable or output fails validation.
-    Keeps it human-friendly and consistent with observability + tense.
+    Safer, more varied fallback.
+    - Exactly 3 sentences
+    - No attention cue (sentence 1 starts with "I")
+    - Respects observability + tense
+    - Adds task-specific causes when task_id is known
     """
-    timing = meta.get("explanation_timing", "immediate")
-    error_type = meta.get("error_type", "")
-    action = meta.get("action", "get")
-    obj = meta.get("object", "object")
+    timing = (meta.get("explanation_timing") or meta.get("timing") or "immediate").strip()
+    error_type = (meta.get("error_type") or "").strip().lower()
+    action = (meta.get("action") or "retrieve").strip()
+    obj = (meta.get("object") or "object").strip().replace("_", " ")
+    task_id = (meta.get("task_id") or "").strip().lower()
 
-    if timing == "immediate":
-        fix = "I’ll adjust my view and try again."
-    else:
-        fix = "I adjusted my view and tried again."
+    is_nonobs = ("non" in error_type) or ("non_observable" in error_type)
 
-    if "non" in error_type:
-        # non-observable: hidden outcome/property
-        return f"One moment— I couldn’t {action} the {obj}. It wasn’t where I needed it to be. {fix}"
+    future = (timing == "immediate")
+
+    def s3_future(text: str) -> str:
+        return text if text.endswith(".") else (text + ".")
+
+    # --- Task-specific templates (kept simple & safe) ---
+    # Each returns (S1, S2, S3) without attention cue.
+    if task_id in {"bottle_behind_drawer_replan"}:
+        s1 = f"I couldn’t {action} the {obj}."
+        if is_nonobs:
+            s2 = "The grip I had wasn’t stable enough to lift it safely."
+        else:
+            s2 = "It’s tucked behind the drawer front, so the approach is awkward from here."
+        s3 = "I will switch to a higher approach and try a top-down grasp." if future \
+             else "I switched to a higher approach and used a top-down grasp."
+        return f"{s1} {s2} {s3}"
+
+    if task_id in {"black_cup_occluded_viewpoint_search"}:
+        s1 = f"I couldn’t {action} the {obj}."
+        if is_nonobs:
+            s2 = "The black cup is in the middle, so I couldn’t grasp the cup from this side."
+        else:
+            s2 = "The cups were blocked from this view, so I couldn’t pick the right one yet."
+        s3 = "I will move to a higher view to confirm the black cup and pick it." if future \
+             else "I moved to a higher view to confirm the black cup and then picked it."
+        return f"{s1} {s2} {s3}"
+
+    if task_id in {"missing_knife_two_drawers"}:
+        s1 = f"I couldn’t {action} the {obj}."
+        if is_nonobs:
+            s2 = "The first drawer I checked didn’t contain it, so I needed to search further."
+        else:
+            s2 = "It wasn’t in the drawer I checked first, so I had to look in the other drawer."
+        s3 = "I will check the other drawer and then bring it to you." if future \
+             else "I checked the other drawer and then brought it to you."
+        return f"{s1} {s2} {s3}"
+
+    if task_id in {"missing_apple_blindspot_plate"}:
+        s1 = f"I couldn’t {action} the {obj}."
+        if is_nonobs:
+            s2 = "It was outside my initial view, so I needed to reposition to find it."
+        else:
+            s2 = "It wasn’t in my initial view from here, so I needed a different angle to spot it."
+        s3 = "I will shift my viewpoint to locate it and then pick it." if future \
+             else "I shifted my viewpoint to locate it and then picked it."
+        return f"{s1} {s2} {s3}"
+
+    # --- Generic fallback (still varied + safe) ---
+    s1 = f"I couldn’t {action} the {obj}."
+
+    if is_nonobs:
+        # hidden outcome/property (keep it general but not identical every time)
+        s2_options = [
+            "The position I needed wasn’t available when I tried.",
+            "I couldn’t confirm the right placement from that viewpoint.",
+            "The way it was situated made the first attempt unreliable.",
+        ]
+        s2 = s2_options[hash(task_id + obj) % len(s2_options)]
+        s3 = "I will adjust my approach and try again." if future else "I adjusted my approach and tried again."
     else:
-        # observable: visible situation
-        return f"One moment— I couldn’t {action} the {obj}. I can’t see it clearly from this angle. {fix}"
+        # visible situation
+        s2_options = [
+            "From this angle, the approach is awkward and I don’t have a clear path.",
+            "It’s partially blocked from this view, so I need a better approach.",
+            "The current angle makes it hard to align the grasp cleanly.",
+        ]
+        s2 = s2_options[hash(task_id + obj) % len(s2_options)]
+        s3 = "I will change my viewpoint and try again." if future else "I changed my viewpoint and tried again."
+
+    return f"{s1} {s2} {s3}"
 
 def try_openai_generate(system_prompt: str, user_prompt: str, model: str) -> Optional[str]:
     """
@@ -319,6 +384,13 @@ def generate_explanation(meta: Dict[str, str], cfg: Dict[str, Any]) -> Tuple[str
     """
     Returns (explanation_text, runlog_updates)
     """
+    # Ensure speak_phase is ALWAYS defined (fix UnboundLocalError / NameError)
+    # Prefer meta['speak_phase'] from run_task/controller, else fall back to explanation_timing
+    speak_phase = (meta.get("speak_phase") or meta.get("explanation_timing") or "immediate")
+    speak_phase = str(speak_phase).strip().lower()
+    if speak_phase not in ("immediate", "post_recovery"):
+        speak_phase = "immediate"
+
     runlog: Dict[str, Any] = {}
     timing = meta.get("explanation_timing", "immediate")
     error_type = (meta.get("error_type") or "").lower()
@@ -329,6 +401,15 @@ def generate_explanation(meta: Dict[str, str], cfg: Dict[str, Any]) -> Tuple[str
     if "non" in error_type:
         sys_prompt = build_system_prompt_non_observable(speak_phase)
     else:
+        # ---- FIX: speak_phase must be defined (comes from meta/tmp yaml) ----
+        speak_phase = (
+            (meta or {}).get("speak_phase")
+            or (cfg.get("meta", {}) if isinstance(cfg, dict) else {}).get("speak_phase")
+            or (meta or {}).get("timing")
+            or "immediate"
+        )
+        # -------------------------------------------------------------------
+
         sys_prompt = build_system_prompt_observable(speak_phase)
 
 

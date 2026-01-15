@@ -20,16 +20,16 @@
   "empty_frame_ratio": 0.0,
   "nodes": [
     {
-      "label": "plate",
+      "label": "obstacle",
       "count": 3
     },
     {
-      "label": "obstacle",
+      "label": "banana",
       "count": 2
     },
     {
-      "label": "banana",
-      "count": 1
+      "label": "plate",
+      "count": 2
     }
   ],
   "edges": []

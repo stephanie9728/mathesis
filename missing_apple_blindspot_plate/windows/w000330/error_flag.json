@@ -1,6 +1,6 @@
 {
   "task_id": "missing_apple_blindspot_plate",
-  "error_confirmed": true,
+  "error_confirmed": false,
   "source": "vid_c_runlog.json:error_confirmed",
   "observability": "observable",
   "error_type": "observable"

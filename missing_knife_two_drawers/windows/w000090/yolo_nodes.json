@@ -18,19 +18,11 @@
     "text_thresh": 0.25
   },
   "sampled_frames": 3,
-  "empty_frame_ratio": 0.0,
+  "empty_frame_ratio": 0.3333333333333333,
   "nodes": [
     {
       "label": "drawer",
-      "count": 8
-    },
-    {
-      "label": "table",
-      "count": 3
-    },
-    {
-      "label": "knife",
-      "count": 2
+      "count": 6
     }
   ]
 }

@@ -1,43 +1,44 @@
 controller:
-  window_size: 30
-  window_stride: 30
-  window_warmup: 30
+  window_size: 180
+  window_stride: 180
+  window_warmup: 180
 detector:
-  confirm_k: 1
+  confirm_k: 2
   gate_presence_any:
-  - plate
-  - banana
-  - table
-  min_total_nodes: 1
-  present_count_ge: 1
+  - drawer
+  - cabinet
+  - handle
+  - knife
+  min_total_nodes: 3
+  present_count_ge: 2
+  require_empty_ratio_le: 0.8
   type: missing_object
   watch_object_from_meta: object
 llm:
-  goal_en: 'Help the user retrieve an apple from the table and present it.
+  goal_en: 'Help the user retrieve a knife from a drawer and present it.
 
     '
   mode: slotfill
   model: gpt-4o-mini
-  scene_description: 'The scene contains a table with a plate holding a banana. An
-    apple is also on the table, but it is outside the robot’s initial field of view.
+  scene_description: 'The scene contains a table with two stacked drawers. The knife
+    is expected to be inside one of the drawers.
 
     '
-  task_context: 'The robot initially inspects the plate and does not detect the apple
-    due to a camera blind spot. The apple’s absence from the current view is directly
-    visible to the user. The robot should recover by adjusting its viewpoint (active
-    re-search) to locate the apple, then grasp and present it.
+  task_context: 'The robot searches the drawers to locate the knife in order to assist
+    the user. The absence of the knife in the drawer is not directly visible to the
+    user.
 
     '
 meta:
   action: retrieve
-  error_type: observable
+  error_type: non_observable
   explanation_timing: post_recovery
   final_window: false
-  object: apple
+  object: knife
   participant_id: P01
   speak_phase: post_recovery
-  task_id: missing_apple_blindspot_plate
-  task_name: Pick Apple – Apple Outside Initial View (Blind Spot)
+  task_id: missing_knife_two_drawers
+  task_name: Pick Knife – Knife Not in First Drawer
 tools:
   candidates: []
-  correct: apple
+  correct: knife

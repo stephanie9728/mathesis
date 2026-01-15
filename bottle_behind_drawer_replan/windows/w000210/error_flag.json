@@ -1,0 +1,7 @@
+{
+  "task_id": "bottle_behind_drawer_replan",
+  "error_confirmed": true,
+  "source": "vid_c_runlog.json:error_confirmed",
+  "observability": "observable",
+  "error_type": "observable"
+}

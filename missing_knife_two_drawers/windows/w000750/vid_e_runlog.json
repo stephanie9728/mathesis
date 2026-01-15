@@ -1,0 +1,17 @@
+{
+  "task_id": "missing_knife_two_drawers",
+  "video_root": "/home/ru53kem/Projects/mathesis/missing_knife_two_drawers/windows/w000750",
+  "error_confirmed": true,
+  "explanation_timing": "post_recovery",
+  "error_type": "non_observable",
+  "llm_model": "gpt-4o-mini",
+  "words_min": 50,
+  "words_max": 80,
+  "sent_min": 3,
+  "sent_max": 3,
+  "attempt_1": "no_response",
+  "attempt_2": "no_response",
+  "attempt_3": "no_response",
+  "attempt_4": "no_response",
+  "fallback_used": true
+}

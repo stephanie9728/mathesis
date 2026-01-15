@@ -1,0 +1,13 @@
+{
+  "config": "/home/ru53kem/Projects/mathesis/tasks/_tmp_run.yaml",
+  "task_id": "black_cup_occluded_viewpoint_search",
+  "error_type": "non_observable",
+  "object": "black_cup",
+  "error_confirmed": true,
+  "reason": "detector=always",
+  "empty_frame_ratio": 0.0,
+  "debug": {
+    "detector_type": "always"
+  },
+  "ts": 1768396608.6528444
+}

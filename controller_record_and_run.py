@@ -1,8 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+controller_record_and_run.py (full, fixed)
+
+What this controller does (PC2):
+- ZMQ PULL: receives START / SEG_DONE / END / HELLO_ACK / AUDIO_DONE
+- TCP server: receives length-prefixed PNG frames from PC1 and saves to <workdir>/<task_id>/frames
+- Window analysis: periodically calls run_task.py in --mode window and latches explanation_text (if any)
+- Optional remote audio: sends SAY to PC1 audio listener via ZMQ PUSH
+- Optional orchestration blocking: can delay PLAY_ACK until AUDIO_DONE (block_on_audio)
+
+Fixes vs your pasted version:
+- run_window_analyze() call signature is correct (workdir, task_id, timing, participant, frames_dir, window_end, window_size, analyze_timeout_sec)
+- Uses current_task_id consistently (no undefined task_id in maybe_analyze_and_latch)
+- Writes frames as 000000.png, 000001.png, ...
+- Adds external_flag helper: on SEG_DONE A for a configured task, writes robot_error.json in task root
+  so Vid-C can use detector=external_flag.
+
+Usage example:
+  export VIDE_SPEAK_MODE=speak
+  python3 controller_record_and_run.py --workdir /home/ru53kem/Projects/mathesis --zmq_port 5555 --tcp_port 5001 \
+    --pc1_audio_endpoint tcp://10.163.18.91:5557 --audio_ack_fallback_sec 12
+"""
 
 import argparse
 import base64
+import json
 import os
 import shutil
 import socket
@@ -10,7 +33,7 @@ import struct
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Any, Set
+from typing import Optional, Tuple, Dict, Any, Set, List
 
 import yaml
 import zmq
@@ -67,19 +90,12 @@ def parse_audio_done(msg: str) -> Optional[Tuple[str, str]]:
     return None
 
 
-def try_b64decode(b64: str) -> str:
-    try:
-        return base64.b64decode(b64.encode("utf-8")).decode("utf-8", errors="replace")
-    except Exception:
-        return ""
-
-
 # ----------------------------- TCP receiver (length-prefixed PNG) -----------------------------
 
 class TCPReceiver:
     """
     Accepts a single TCP connection from PC1 and receives frames.
-    Expected payload format per frame:
+    Expected payload per frame:
       [4-byte big-endian length][png_bytes]
     """
     def __init__(self, host: str, port: int, accept_timeout: float = 0.2):
@@ -138,7 +154,7 @@ class TCPReceiver:
     def recv_one_png(self) -> Optional[bytes]:
         """
         Returns:
-          - bytes: a PNG payload
+          - bytes: PNG payload
           - None: no data yet (timeout)
         Side effects:
           - closes conn on socket closed
@@ -150,7 +166,7 @@ class TCPReceiver:
         if hdr is None:
             return None
         if hdr == b"":
-            log("⚠️ TCP recv error: socket closed (closing conn)")
+            log("⚠️ TCP recv: socket closed (closing conn)")
             self.close_conn()
             return None
 
@@ -164,7 +180,7 @@ class TCPReceiver:
         if payload is None:
             return None
         if payload == b"":
-            log("⚠️ TCP recv error: socket closed mid-frame (closing conn)")
+            log("⚠️ TCP recv: socket closed mid-frame (closing conn)")
             self.close_conn()
             return None
 
@@ -179,8 +195,8 @@ def clean_dir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
 
 
-def read_explanation_text(video_root: Path) -> str:
-    txt_path = video_root / "explanation_text.txt"
+def read_explanation_text(win_root: Path) -> str:
+    txt_path = win_root / "explanation_text.txt"
     if not txt_path.exists():
         return ""
     txt = txt_path.read_text(encoding="utf-8", errors="replace").strip()
@@ -200,19 +216,19 @@ def run_window_analyze(
     analyze_timeout_sec: float,
 ) -> str:
     """
-    Create a temp window directory, copy last window_size frames ending at window_end,
-    run run_task.py in window mode, return explanation text if error latched.
+    Create a window dir <workdir>/<task_id>/windows/wXXXXXX, copy last window_size frames,
+    run run_task.py in window mode. If error latched (rc==0), return explanation_text.
     """
-    # 1) make window dir
     win_root = (workdir / task_id / "windows" / f"w{window_end:06d}")
     win_frames = win_root / "frames"
+
     if win_root.exists():
         shutil.rmtree(win_root)
     win_frames.mkdir(parents=True, exist_ok=True)
 
-    start = max(1, window_end - window_size + 1)
+    start = max(0, window_end - window_size)
     copied = 0
-    for i in range(start - 1, window_end):
+    for i in range(start, window_end):
         src = frames_dir / f"{i:06d}.png"
         if src.exists():
             shutil.copy2(src, win_frames / src.name)
@@ -222,38 +238,57 @@ def run_window_analyze(
         return ""
 
     cmd = [
-    "python3", "run_task.py",
-    task_id, timing, participant,
-    "--speak_phase", timing,   # immediate / post_recovery
-    "--mode", "window",
-    "--window_end", str(window_end),
-    "--window_size", str(window_size),
-]
-
-
+        "python3", "run_task.py",
+        task_id, timing, participant,
+        "--speak_phase", timing,      # immediate / post_recovery
+        "--mode", "window",
+        "--window_end", str(window_end),
+        "--window_size", str(window_size),
+    ]
     log(f"🧠 WINDOW ANALYZE: {' '.join(cmd)}")
+
     try:
-        p = subprocess.run(cmd, cwd=str(workdir), timeout=analyze_timeout_sec, check=False)
+        p = subprocess.run(cmd, cwd=str(workdir), timeout=float(analyze_timeout_sec), check=False)
     except subprocess.TimeoutExpired:
         log(f"⏰ WINDOW ANALYZE timeout at window_end={window_end}")
         return ""
 
-    # Your run_task.py convention: rc=0 means error found, writes explanation_text.txt
+    # Convention: rc=0 => error found (writes explanation_text.txt); rc=10 => normal/no error
     if p.returncode == 0:
         txt = read_explanation_text(win_root)
         if txt:
-            log(f"🚨 ERROR LATCHED at frame={window_end} (len={len(txt)}) — latched")
+            log(f"🚨 ERROR LATCHED at frame={window_end} (len={len(txt)})")
             return txt
         return ""
 
-    # rc=10 normal no error
     if p.returncode == 10:
         log(f"✅ No error latched at window_end={window_end}")
         return ""
 
-    # other rc: treat as no explanation
     log(f"⚠️ WINDOW ANALYZE rc={p.returncode} at window_end={window_end}")
     return ""
+
+
+def write_robot_error_flag(video_root: Path, task_id: str, error_confirmed: bool, reason: str = ""):
+    p = video_root / "robot_error.json"
+    data = {
+        "task_id": task_id,
+        "error_confirmed": bool(error_confirmed),
+        "reason": reason,
+        "ts": time.time(),
+    }
+    p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    log(f"🧾 Wrote robot_error.json: error_confirmed={error_confirmed} reason={reason}")
+
+
+def clear_robot_error_flag(video_root: Path):
+    p = video_root / "robot_error.json"
+    if p.exists():
+        try:
+            p.unlink()
+            log("🧹 Cleared robot_error.json")
+        except Exception as e:
+            log(f"⚠️ Failed to clear robot_error.json: {e}")
 
 
 # ----------------------------- main controller -----------------------------
@@ -273,17 +308,21 @@ def main():
     ap.add_argument("--pc1_audio_endpoint", default="", help="tcp://PC1:5557 (optional)")
     ap.add_argument("--audio_ack_fallback_sec", type=float, default=12.0)
 
-    # NEW: keep orchestration safe by default
     ap.add_argument("--block_on_audio", action="store_true",
                     help="If set, delay PLAY_ACK for trigger phase until AUDIO_DONE or timeout.")
+
     ap.add_argument("--cfg", default="experiments.yaml")
+    ap.add_argument("--force_error_on_seg_a_task",
+                    action="append",
+                    default=[],
+                    help="Repeatable. For these task_ids, write robot_error.json on SEG_DONE A (for external_flag).")
 
     args = ap.parse_args()
 
     workdir = Path(args.workdir).resolve()
     os.chdir(workdir)
 
-    # Discover tasks (same style as your logs)
+    # Discover tasks
     tasks_dir = workdir / "tasks"
     task_ids: Set[str] = set()
     if tasks_dir.exists():
@@ -347,7 +386,7 @@ def main():
     tcp = TCPReceiver("0.0.0.0", args.tcp_port)
     log(f"🟢 TCP listening on 0.0.0.0:{args.tcp_port}")
 
-    # State
+    # Runtime state
     running = False
     current_task_id: Optional[str] = None
     current_participant: Optional[str] = None
@@ -361,7 +400,7 @@ def main():
     latched_text: Dict[str, str] = {}
     played_phase: Dict[Tuple[str, str], bool] = {}
 
-    # Audio blocking (optional)
+    # Optional block-on-audio bookkeeping
     pending_audio_ts: Dict[Tuple[str, str], float] = {}
 
     def is_current_task(tid: str) -> bool:
@@ -369,8 +408,6 @@ def main():
 
     def playback_trigger(timing: str) -> Optional[Tuple[str, str]]:
         # returns (trigger_segment_label, phase)
-        # immediate -> trigger at A -> phase afterA, but we speak as soon as latched (not necessarily at seg)
-        # post_recovery -> speak at B -> phase post_recovery
         if timing == "none":
             return None
         if timing == "immediate":
@@ -380,13 +417,11 @@ def main():
         return ("A", "immediate")
 
     def maybe_latch_and_maybe_speak_now(tid: str, new_text: str):
-        # latch once
         if latched.get(tid, False):
             return
         latched[tid] = True
         latched_text[tid] = new_text
 
-        # immediate: speak immediately once latched
         if current_timing == "immediate":
             phase = "immediate"
             if played_phase.get((tid, phase), False):
@@ -408,27 +443,35 @@ def main():
         for tid, phase in to_ack:
             pending_audio_ts.pop((tid, phase), None)
             log(f"⏱️ AUDIO_DONE timeout -> fallback PLAY_ACK (task={tid} phase={phase})")
-            send_play_ack(tid, f"after{phase}" if phase in {"A", "B"} else phase)
+            send_play_ack(tid, phase)
 
-    # Window scheduling
-    last_analyzed_end = 0
+    last_analyzed_end = -1
 
     def maybe_analyze_and_latch():
         nonlocal last_analyzed_end
-        if not running or frames_dir is None:
+        if not running or frames_dir is None or current_task_id is None or current_timing is None or current_participant is None:
             return
         if frame_count < int(args.window_warmup):
             return
         # analyze on stride
         if (frame_count - int(args.window_warmup)) % int(args.window_stride) != 0:
             return
+
         window_end = frame_count
         if window_end <= last_analyzed_end:
             return
         last_analyzed_end = window_end
 
-        explanation = run_window_analyze(task_id, current_timing, current_participant, frame_count, args.window_size)
-
+        explanation = run_window_analyze(
+            workdir=workdir,
+            task_id=current_task_id,
+            timing=current_timing,
+            participant=current_participant,
+            frames_dir=frames_dir,
+            window_end=window_end,
+            window_size=int(args.window_size),
+            analyze_timeout_sec=float(args.analyze_timeout_sec),
+        )
         if explanation:
             maybe_latch_and_maybe_speak_now(current_task_id, explanation)
 
@@ -438,6 +481,8 @@ def main():
 
     poller = zmq.Poller()
     poller.register(pull, zmq.POLLIN)
+
+    force_on_a: Set[str] = set(args.force_error_on_seg_a_task or [])
 
     while True:
         socks = dict(poller.poll(10))
@@ -459,7 +504,6 @@ def main():
                 if not is_current_task(tid):
                     log(f"⚠️ Ignored AUDIO_DONE for task={tid} (running={running}, current={current_task_id})")
                     continue
-                # only meaningful if block_on_audio
                 if pending_audio_ts.pop((tid, phase), None) is not None:
                     log(f"✅ AUDIO_DONE received -> send PLAY_ACK for task={tid} phase={phase}")
                     send_play_ack(tid, phase)
@@ -479,7 +523,7 @@ def main():
                 current_timing = None
                 frames_dir = None
                 frame_count = 0
-                last_analyzed_end = 0
+                last_analyzed_end = -1
                 pending_audio_ts.clear()
                 tcp.close_conn()
                 continue
@@ -494,17 +538,17 @@ def main():
                 timing = current_timing or "immediate"
                 log(f"🧭 SEG_DONE arrived: task={tid} seg={seg_label} timing={timing}")
 
-                # ACK the phase immediately (never block orchestration),
-                # except optional block_on_audio when we are about to speak at this trigger.
+                # Optional external_flag: mark error on segment A
+                if seg_label == "A" and tid in force_on_a:
+                    video_root = workdir / tid
+                    write_robot_error_flag(
+                        video_root=video_root,
+                        task_id=tid,
+                        error_confirmed=True,
+                        reason="forced_on_seg_a",
+                    )
+
                 trig = playback_trigger(timing)
-                # Decide speak_phase for Vid-E
-                # This controls prompt style (attention cue vs retrospective)
-                if timing == "immediate":
-                    speak_phase = "immediate"
-                elif timing == "post_recovery":
-                    speak_phase = "post_recovery"
-                else:
-                    speak_phase = timing
 
                 if trig is None:
                     send_play_ack(tid, f"after{seg_label}")
@@ -512,31 +556,28 @@ def main():
 
                 trig_seg, trig_phase = trig
 
-                # Non-trigger segment => always ACK now
+                # Non-trigger segments => ACK now
                 if seg_label != trig_seg:
                     send_play_ack(tid, f"after{seg_label}")
                     continue
 
-                # Trigger segment:
-                # - immediate: we already speak when latched; ACK now
-                # - post_recovery: speak here if latched, otherwise ACK now
+                # Trigger segment behavior
                 if timing == "immediate":
+                    # Immediate: speak when latched; don't block orchestration
                     send_play_ack(tid, f"after{seg_label}")
                     continue
 
                 # post_recovery trigger at B:
-                text = latched_text.get(tid, "").strip()
+                text = (latched_text.get(tid, "") or "").strip()
                 if text and not played_phase.get((tid, trig_phase), False):
                     played_phase[(tid, trig_phase)] = True
                     log(f"🗣️ post_recovery trigger -> speak now (task={tid} phase={trig_phase})")
                     send_say(tid, trig_phase, text)
 
                     if args.block_on_audio:
-                        # delay ACK until AUDIO_DONE or fallback
                         pending_audio_ts[(tid, trig_phase)] = time.time()
                         continue
 
-                # default: ACK immediately
                 send_play_ack(tid, f"after{seg_label}")
                 continue
 
@@ -566,11 +607,15 @@ def main():
             latched_text[task_id] = ""
             played_phase.clear()
             pending_audio_ts.clear()
-            last_analyzed_end = 0
+            last_analyzed_end = -1
 
             video_root = workdir / task_id
             frames_dir = video_root / "frames"
             video_root.mkdir(parents=True, exist_ok=True)
+
+            # If using external_flag detector, clear stale file at START
+            clear_robot_error_flag(video_root)
+
             clean_dir(frames_dir)
             frame_count = 0
 
@@ -593,6 +638,7 @@ def main():
                 time.sleep(0.02)
                 continue
 
+            # save frame
             (frames_dir / f"{frame_count:06d}.png").write_bytes(payload)
             frame_count += 1
 

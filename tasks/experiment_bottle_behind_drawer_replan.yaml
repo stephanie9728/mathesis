@@ -1,0 +1,44 @@
+meta:
+  task_id: bottle_behind_drawer_replan
+  task_name: Pick Black Bottle – Bottle Recessed Behind Drawer (Replan)
+  error_type: observable
+  action: retrieve
+  object: black_bottle
+
+detector:
+  type: always
+  watch_object_from_meta: object
+  label_aliases:
+    black_bottle: [bottle]
+  gate_presence_any: []          
+  present_count_ge: 1
+  confirm_k: 2                  
+  require_empty_ratio_le: 0.95
+  min_total_nodes: 1
+
+
+controller:
+  window_warmup: 150
+  window_stride: 120
+  window_size: 120
+
+tools:
+  candidates: []
+  correct: bottle
+
+llm:
+  mode: slotfill
+  model: gpt-4o-mini
+
+  goal_en: >
+    Help the user retrieve the black bottle and present it.
+
+  scene_description: >
+    The scene contains a table with a partially open drawer.
+    A black plastic bottle is placed recessed behind the drawer front, making a frontal approach awkward.
+
+  task_context: >
+    Segment A represents an initial failed grasp attempt.
+    The robot is unable to grasp the bottle due to an unfavorable approach.
+    The robot then replans and changes its approach in segment B to successfully retrieve the bottle.
+    The failure and recovery are directly observable to the user.

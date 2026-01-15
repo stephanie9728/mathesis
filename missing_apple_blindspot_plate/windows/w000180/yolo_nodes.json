@@ -22,10 +22,6 @@
     {
       "label": "obstacle",
       "count": 3
-    },
-    {
-      "label": "plate",
-      "count": 3
     }
   ]
 }

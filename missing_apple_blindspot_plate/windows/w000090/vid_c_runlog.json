@@ -1,12 +1,17 @@
 {
   "config": "/home/ru53kem/Projects/mathesis/tasks/_tmp_run.yaml",
   "task_id": "missing_apple_blindspot_plate",
+  "error_type": "observable",
+  "object": "apple",
   "error_confirmed": true,
-  "reason": "missing_object: 'apple' missing (streak=1/1)",
+  "reason": "missing_object: 'apple' missing (streak=2/1)",
   "empty_frame_ratio": 0.0,
   "debug": {
     "detector_type": "missing_object",
-    "watch_object": "apple",
+    "watch_targets": [
+      "apple"
+    ],
+    "matched_target": "",
     "watch_count": 0,
     "present_count_ge": 1,
     "present": false,
@@ -25,11 +30,12 @@
     "confirm_k": 1,
     "state_path": "/home/ru53kem/Projects/mathesis/missing_apple_blindspot_plate/windows/.detector_state.json",
     "labels_top": [
-      "obstacle",
+      "banana",
       "plate",
-      "banana"
+      "obstacle"
     ],
-    "missing_streak": 1
+    "missing_streak": 2,
+    "label_aliases": {}
   },
-  "ts": 1768314158.4274416
+  "ts": 1768403601.270845
 }

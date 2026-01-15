@@ -18,9 +18,13 @@
 #   - present_count_ge: int (default 1)
 #   - gate_presence_any: [..] (optional)
 #   - require_empty_ratio_le: float (optional)
-#   - min_total_nodes: int (optional; now SOFT, not hard block)
+#   - min_total_nodes: int (optional; SOFT)
 #   - confirm_k: int (default 1): require K consecutive windows missing before confirm
 #   - state_file: str (default ".detector_state.json") stored under <task>/windows/
+#   - label_aliases: {target_label: [alias1, alias2, ...]} (optional)
+#       Example:
+#         label_aliases:
+#           black_cup: [cup]
 #
 # Rationale:
 #   - "not enough context" should not hard-block triggering; otherwise windows become unstable.
@@ -30,7 +34,7 @@ import sys
 import time
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional, List, Tuple
+from typing import Any, Dict, Optional, List, Tuple, Union
 
 import yaml
 
@@ -76,12 +80,31 @@ def extract_labels_and_counts(graph: Dict[str, Any]) -> Tuple[List[str], Dict[st
 
 
 def best_match_count(counts: Dict[str, int], target: str) -> int:
+    """
+    "Soft" matching:
+      - exact
+      - substring both ways (t in lb) or (lb in t)
+    """
     t = normalize_label(target)
     best = 0
     for lb, c in counts.items():
         if (t == lb) or (t in lb) or (lb in t):
             best = max(best, int(c))
     return best
+
+
+def best_match_count_any(counts: Dict[str, int], targets: List[str]) -> Tuple[int, str]:
+    """
+    Return (best_count, best_target_matched)
+    """
+    best = 0
+    best_t = ""
+    for t in targets:
+        c = best_match_count(counts, t)
+        if c > best:
+            best = c
+            best_t = t
+    return best, best_t
 
 
 def gate_passed(labels: List[str], gate_any: List[str]) -> bool:
@@ -103,7 +126,6 @@ def find_task_windows_root(video_root: Path) -> Path:
     """
     if video_root.name.startswith("w") and video_root.parent.name == "windows":
         return video_root.parent
-    # full mode
     return video_root / "windows"
 
 
@@ -121,9 +143,65 @@ def save_state(state_path: Path, st: Dict[str, Any]):
     state_path.write_text(json.dumps(st, indent=2), encoding="utf-8")
 
 
+def to_str_list(x: Any) -> List[str]:
+    """
+    Allow YAML to pass watch_object as:
+      - "bottle"
+      - ["black_cup", "cup"]
+    """
+    if x is None:
+        return []
+    if isinstance(x, list):
+        out: List[str] = []
+        for it in x:
+            s = str(it).strip()
+            if s:
+                out.append(s)
+        return out
+    s = str(x).strip()
+    return [s] if s else []
+
+
+def expand_watch_targets(
+    watch_list: List[str],
+    label_aliases: Dict[str, Any],
+) -> List[str]:
+    """
+    Expand watch targets using alias map:
+      label_aliases:
+        black_cup: [cup]
+    Result: ["black_cup", "cup"]
+    """
+    aliases_norm: Dict[str, List[str]] = {}
+    if isinstance(label_aliases, dict):
+        for k, v in label_aliases.items():
+            kk = normalize_label(str(k))
+            vv = to_str_list(v)
+            aliases_norm[kk] = [normalize_label(x) for x in vv if str(x).strip()]
+
+    expanded: List[str] = []
+    for w in watch_list:
+        wn = normalize_label(w)
+        if not wn:
+            continue
+        expanded.append(wn)
+        for a in aliases_norm.get(wn, []):
+            if a and a not in expanded:
+                expanded.append(a)
+
+    # de-dup keep order
+    seen = set()
+    out: List[str] = []
+    for t in expanded:
+        if t not in seen:
+            out.append(t)
+            seen.add(t)
+    return out
+
+
 def detect_missing_object(
     graph: Dict[str, Any],
-    watch_object: str,
+    watch_targets: List[str],
     empty_frame_ratio: Optional[float],
     require_empty_ratio_le: float,
     min_total_nodes: int,
@@ -135,7 +213,7 @@ def detect_missing_object(
     labels, counts = extract_labels_and_counts(graph)
     total_nodes = len(labels)
 
-    watch_count = best_match_count(counts, watch_object)
+    watch_count, matched_target = best_match_count_any(counts, watch_targets)
     present = (watch_count >= int(present_count_ge))
 
     cam_ok = True
@@ -144,11 +222,12 @@ def detect_missing_object(
 
     gate_ok = gate_passed(labels, gate_any)
 
-    # NOTE: min_total_nodes is now SOFT (won't block); we only record it
+    # NOTE: min_total_nodes is SOFT (won't block); we only record it
     enough_context = (total_nodes >= int(min_total_nodes))
 
     debug = {
-        "watch_object": watch_object,
+        "watch_targets": watch_targets,
+        "matched_target": matched_target,
         "watch_count": watch_count,
         "present_count_ge": int(present_count_ge),
         "present": present,
@@ -194,11 +273,12 @@ def detect_missing_object(
 
     if not present:
         if st["missing_streak"] >= int(confirm_k):
-            # Confirmed error
             extra = ""
             if not enough_context:
                 extra = " (context low but allowed)"
-            return True, f"missing_object: '{watch_object}' missing (streak={st['missing_streak']}/{confirm_k}){extra}", debug
+            # show primary intended target for readability (first in list)
+            primary = watch_targets[0] if watch_targets else "watch_object"
+            return True, f"missing_object: '{primary}' missing (streak={st['missing_streak']}/{confirm_k}){extra}", debug
         else:
             return False, f"missing_object: missing but waiting confirm_k (streak={st['missing_streak']}/{confirm_k})", debug
 
@@ -206,12 +286,46 @@ def detect_missing_object(
 
 
 def detect_external_flag(video_root: Path, file: str, key: str) -> Tuple[bool, str, Dict[str, Any]]:
-    p = video_root / file
-    data = try_load_json(p)
-    if not data:
-        return False, f"external_flag: missing {file}", {"file": file, "key": key}
+    """
+    Look for flag file in:
+      1) window root (video_root/file)
+      2) task root (video_root/../..  if video_root is .../windows/wXXXXXX)
+    """
+    tried: List[str] = []
+
+    def try_path(p: Path):
+        tried.append(str(p))
+        data = try_load_json(p)
+        if not data:
+            return None
+        return data
+
+    # 1) window-local
+    p1 = video_root / file
+    data = try_path(p1)
+
+    # 2) fallback: task root
+    if data is None:
+        # window dir: <task>/windows/w000090  -> task root is parents[2] == <task>
+        # If someone passes <task> directly, parents[2] might not exist, so guard.
+        task_root = None
+        try:
+            if video_root.name.startswith("w") and video_root.parent.name == "windows":
+                task_root = video_root.parent.parent
+        except Exception:
+            task_root = None
+
+        if task_root is not None:
+            p2 = task_root / file
+            data = try_path(p2)
+
+    if data is None:
+        return False, f"external_flag: missing {file}", {"file": file, "key": key, "tried": tried}
+
     val = bool(data.get(key, False))
-    return val, f"external_flag: {key}={val}", {"file": file, "key": key, "value": data.get(key, None)}
+    return val, f"external_flag: {key}={val}", {
+        "file": file, "key": key, "value": data.get(key, None), "tried": tried
+    }
 
 
 def main():
@@ -247,13 +361,16 @@ def main():
             reason = "detector=always"
 
         elif det_type == "missing_object":
-            watch = det.get("watch_object", "")
+            # watch_object can be string or list
+            watch_raw: Union[str, List[str]] = det.get("watch_object", "")
             if det.get("watch_object_from_meta"):
                 meta_key = str(det.get("watch_object_from_meta"))
-                watch = meta.get(meta_key, watch)
+                # meta[meta_key] might be string; we keep raw and normalize later
+                watch_raw = meta.get(meta_key, watch_raw)
 
-            watch = (watch or "").strip()
-            if not watch:
+            watch_list = to_str_list(watch_raw)
+
+            if not watch_list:
                 error_confirmed = False
                 reason = "missing_object: watch_object not set"
             else:
@@ -264,13 +381,16 @@ def main():
                 present_count_ge = int(det.get("present_count_ge", 1))
                 confirm_k = int(det.get("confirm_k", 1))
                 state_file = str(det.get("state_file", ".detector_state.json"))
+                label_aliases = det.get("label_aliases", {}) or {}
 
                 windows_root = find_task_windows_root(video_root)
                 state_path = windows_root / state_file
 
+                watch_targets = expand_watch_targets(watch_list, label_aliases)
+
                 error_confirmed, reason, d2 = detect_missing_object(
                     graph=graph,
-                    watch_object=watch,
+                    watch_targets=watch_targets,
                     empty_frame_ratio=empty_frame_ratio,
                     require_empty_ratio_le=require_empty_ratio_le,
                     min_total_nodes=min_total_nodes,
@@ -280,6 +400,7 @@ def main():
                     state_path=state_path,
                 )
                 debug.update(d2)
+                debug["label_aliases"] = label_aliases
 
         elif det_type == "external_flag":
             file = str(det.get("file", "robot_error.json"))
@@ -298,6 +419,8 @@ def main():
     runlog = {
         "config": str(yaml_path),
         "task_id": meta.get("task_id"),
+        "error_type": meta.get("error_type"),
+        "object": meta.get("object"),
         "error_confirmed": bool(error_confirmed),
         "reason": reason,
         "empty_frame_ratio": empty_frame_ratio,

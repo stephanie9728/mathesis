@@ -1,19 +1,24 @@
 {
   "config": "/home/ru53kem/Projects/mathesis/tasks/_tmp_run.yaml",
   "task_id": "missing_knife_two_drawers",
+  "error_type": "non_observable",
+  "object": "knife",
   "error_confirmed": true,
-  "reason": "missing_object: 'knife' missing (streak=3/2) (context low but allowed)",
-  "empty_frame_ratio": 0.3333333333333333,
+  "reason": "missing_object: 'knife' missing (streak=5/2) (context low but allowed)",
+  "empty_frame_ratio": 0.0,
   "debug": {
     "detector_type": "missing_object",
-    "watch_object": "knife",
+    "watch_targets": [
+      "knife"
+    ],
+    "matched_target": "",
     "watch_count": 0,
     "present_count_ge": 2,
     "present": false,
     "total_nodes": 1,
     "min_total_nodes": 3,
     "enough_context": false,
-    "empty_frame_ratio": 0.3333333333333333,
+    "empty_frame_ratio": 0.0,
     "require_empty_ratio_le": 0.8,
     "cam_ok": true,
     "gate_presence_any": [
@@ -28,7 +33,8 @@
     "labels_top": [
       "drawer"
     ],
-    "missing_streak": 3
+    "missing_streak": 5,
+    "label_aliases": {}
   },
-  "ts": 1768231506.091896
+  "ts": 1768406616.0422256
 }

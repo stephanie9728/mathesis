@@ -19,9 +19,9 @@ detector:
   confirm_k: 2
 
 controller:
-  window_warmup: 60
-  window_stride: 30
-  window_size: 30
+  window_warmup: 180
+  window_stride: 180
+  window_size: 180
 
 tools:
   candidates: []

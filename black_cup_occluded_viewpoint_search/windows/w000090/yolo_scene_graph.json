@@ -1,0 +1,32 @@
+{
+  "task_id": "black_cup_occluded_viewpoint_search",
+  "video_root": "/home/ru53kem/Projects/mathesis/black_cup_occluded_viewpoint_search/windows/w000090",
+  "generator": "GroundingDINO",
+  "prompt": "cup . green cup . black cup . table . hand",
+  "keywords": [
+    "cup",
+    "green cup",
+    "black cup",
+    "table",
+    "hand"
+  ],
+  "params": {
+    "max_frames": 150,
+    "frame_stride": 10,
+    "box_thresh": 0.35,
+    "text_thresh": 0.25
+  },
+  "sampled_frames": 3,
+  "empty_frame_ratio": 0.0,
+  "nodes": [
+    {
+      "label": "cup",
+      "count": 9
+    },
+    {
+      "label": "table",
+      "count": 3
+    }
+  ],
+  "edges": []
+}

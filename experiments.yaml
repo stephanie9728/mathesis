@@ -4,23 +4,23 @@ pc2:
   tcp_port: 5001
 
 experiments:
-  fork_flat:
-    task_id: fork_grasp_feasibility_uncertainty
-    robot_cmd: [rosrun, ros-movement-control, test_fork.py]
-    seg_a_id: "..."
-    seg_b_id: "..."
+  cup:
+    task_id: black_cup_occluded_viewpoint_search
+    robot_cmd: [rosrun, ros-movement-control, test_one_segment.py]
+    seg_a_id: "696762abe131a5009dfd37ac"
+    seg_b_id: "69676429e131a5009dfd37ad"
 
   bottle:
-    task_id: bottle_grasp_slippage
-    robot_cmd: [rosrun, ros-movement-control, test_bottle.py]
-    seg_a_id: "..."
-    seg_b_id: "..."
+    task_id: bottle_behind_drawer_replan   
+    robot_cmd: [rosrun, ros-movement-control, test_one_segment.py]
+    seg_a_id: "69676429e131a5009dfd37ad"
+    seg_b_id: "696761d5e131a5009dfd37ab"
 
   apple:
     task_id: missing_apple_blindspot_plate
     robot_cmd: [rosrun, ros-movement-control, test_one_segment.py]
-    seg_a_id: "..."
-    seg_b_id: "..."
+    seg_a_id: "69661ad9656216db3872286f"
+    seg_b_id: "69661b85656216db38722870"
 
   drawer:
     task_id: missing_knife_two_drawers

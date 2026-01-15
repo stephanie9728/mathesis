@@ -1,0 +1,31 @@
+{
+  "task_id": "missing_apple_blindspot_plate",
+  "video_root": "/home/ru53kem/Projects/mathesis/missing_apple_blindspot_plate/windows/w000390",
+  "generator": "GroundingDINO",
+  "prompt": "apple . plate . banana . obstacle . hand",
+  "keywords": [
+    "apple",
+    "plate",
+    "banana",
+    "obstacle",
+    "hand"
+  ],
+  "params": {
+    "max_frames": 150,
+    "frame_stride": 10,
+    "box_thresh": 0.35,
+    "text_thresh": 0.25
+  },
+  "sampled_frames": 3,
+  "empty_frame_ratio": 0.0,
+  "nodes": [
+    {
+      "label": "apple",
+      "count": 3
+    },
+    {
+      "label": "obstacle",
+      "count": 1
+    }
+  ]
+}
