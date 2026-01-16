@@ -1,7 +1,0 @@
-{
-  "task_id": "black_cup_occluded_viewpoint_search",
-  "error_confirmed": true,
-  "source": "vid_c_runlog.json:error_confirmed",
-  "observability": "non_observable",
-  "error_type": "non_observable"
-}

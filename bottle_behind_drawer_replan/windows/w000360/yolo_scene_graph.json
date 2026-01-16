@@ -21,16 +21,16 @@
   "empty_frame_ratio": 0.0,
   "nodes": [
     {
+      "label": "shelf",
+      "count": 8
+    },
+    {
       "label": "bottle",
       "count": 6
     },
     {
-      "label": "shelf",
-      "count": 6
-    },
-    {
       "label": "table",
-      "count": 2
+      "count": 1
     }
   ],
   "edges": []

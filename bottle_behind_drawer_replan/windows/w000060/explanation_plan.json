@@ -8,9 +8,8 @@
     "llm_hint": "",
     "vidb_source": "yolo_nodes.json",
     "detected_objects_summary": [
-      "bottle(6)",
-      "shelf(6)",
-      "table(3)"
+      "shelf(7)",
+      "bottle(4)"
     ],
     "empty_frame_ratio": 0.0
   },
@@ -19,7 +18,7 @@
     "evidence": [
       "A visible interruption occurred during motion (e.g., blockage or slippage).",
       "The robot paused and adjusted its action to continue safely.",
-      "Visible context included: bottle(6), shelf(6), table(3)",
+      "Visible context included: shelf(7), bottle(4)",
       "Frames with no detections ratio: 0.00"
     ]
   },

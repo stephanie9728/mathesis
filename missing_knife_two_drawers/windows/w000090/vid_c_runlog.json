@@ -4,7 +4,7 @@
   "error_type": "non_observable",
   "object": "knife",
   "error_confirmed": true,
-  "reason": "missing_object: 'knife' missing (streak=15/2) (context low but allowed)",
+  "reason": "missing_object: 'knife' missing (streak=11/2) (context low but allowed)",
   "empty_frame_ratio": 0.3333333333333333,
   "debug": {
     "detector_type": "missing_object",
@@ -15,7 +15,7 @@
     "watch_count": 0,
     "present_count_ge": 2,
     "present": false,
-    "total_nodes": 1,
+    "total_nodes": 2,
     "min_total_nodes": 3,
     "enough_context": false,
     "empty_frame_ratio": 0.3333333333333333,
@@ -31,10 +31,11 @@
     "confirm_k": 2,
     "state_path": "/home/ru53kem/Projects/mathesis/missing_knife_two_drawers/windows/.detector_state.json",
     "labels_top": [
-      "drawer"
+      "drawer",
+      "table"
     ],
-    "missing_streak": 15,
+    "missing_streak": 11,
     "label_aliases": {}
   },
-  "ts": 1768406585.5019293
+  "ts": 1768491784.8157547
 }

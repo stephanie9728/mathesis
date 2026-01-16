@@ -1,41 +1,44 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-controller_record_and_run.py (full, fixed)
+controller_record_and_run.py (PC2) — FULL WORKING VERSION (clean + no NameError)
 
-What this controller does (PC2):
+PC2 controller:
 - ZMQ PULL: receives START / SEG_DONE / END / HELLO_ACK / AUDIO_DONE
-- TCP server: receives length-prefixed PNG frames from PC1 and saves to <workdir>/<task_id>/frames
-- Window analysis: periodically calls run_task.py in --mode window and latches explanation_text (if any)
-- Optional remote audio: sends SAY to PC1 audio listener via ZMQ PUSH
-- Optional orchestration blocking: can delay PLAY_ACK until AUDIO_DONE (block_on_audio)
+- TCP server: receives length-prefixed PNG frames and saves to <workdir>/<task_id>/frames
+- Window analysis: periodically runs run_task.py in window mode to generate explanation_text.txt
+- Audio: controller sends SAY to PC1 audio listener (ZMQ PUSH)
+- ACK: controller sends PLAY_ACK <task_id> <afterA|afterB> to PC1 via endpoint from HELLO_ACK
 
-Fixes vs your pasted version:
-- run_window_analyze() call signature is correct (workdir, task_id, timing, participant, frames_dir, window_end, window_size, analyze_timeout_sec)
-- Uses current_task_id consistently (no undefined task_id in maybe_analyze_and_latch)
-- Writes frames as 000000.png, 000001.png, ...
-- Adds external_flag helper: on SEG_DONE A for a configured task, writes robot_error.json in task root
-  so Vid-C can use detector=external_flag.
+Policies:
+1) immediate:
+   - As soon as text is latched -> send SAY immediate (once)
+   - Gate segB by holding PLAY_ACK afterA until AUDIO_DONE immediate (or timeout fallback)
 
-Usage example:
-  export VIDE_SPEAK_MODE=speak
-  python3 controller_record_and_run.py --workdir /home/ru53kem/Projects/mathesis --zmq_port 5555 --tcp_port 5001 \
-    --pc1_audio_endpoint tcp://10.163.18.91:5557 --audio_ack_fallback_sec 12
+2) post_recovery:
+   - A->B contiguous: send PLAY_ACK afterA immediately on SEG_DONE A
+   - Prefer speak at SEG_DONE B if latched_text exists (once)
+   - If text not ready at B: ACK afterB immediately, mark pending_speak,
+     enqueue one extra analyze; when text arrives -> speak ASAP
+   - If --block_on_audio: hold PLAY_ACK afterB until AUDIO_DONE post_recovery (or timeout fallback)
+
+3) none:
+   - never speak, ACK immediately
 """
 
 import argparse
 import base64
-import json
 import os
+import queue
 import shutil
 import socket
 import struct
 import subprocess
+import threading
 import time
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Any, Set, List
+from typing import Optional, Tuple, Dict
 
-import yaml
 import zmq
 
 
@@ -52,10 +55,7 @@ def parse_start(msg: str, default_participant: str) -> Optional[Tuple[str, str, 
     parts = msg.split()
     if len(parts) < 4 or parts[0] != "START":
         return None
-    task_id = parts[1]
-    participant = parts[2] or default_participant
-    timing = parts[3]
-    return task_id, participant, timing
+    return parts[1], (parts[2] or default_participant), parts[3].strip()
 
 
 def parse_hello_ack(msg: str) -> Optional[Tuple[str, str]]:
@@ -94,10 +94,10 @@ def parse_audio_done(msg: str) -> Optional[Tuple[str, str]]:
 
 class TCPReceiver:
     """
-    Accepts a single TCP connection from PC1 and receives frames.
-    Expected payload per frame:
+    Accepts a single TCP connection from PC1 and receives frames:
       [4-byte big-endian length][png_bytes]
     """
+
     def __init__(self, host: str, port: int, accept_timeout: float = 0.2):
         self.host = host
         self.port = port
@@ -152,13 +152,6 @@ class TCPReceiver:
         return buf
 
     def recv_one_png(self) -> Optional[bytes]:
-        """
-        Returns:
-          - bytes: PNG payload
-          - None: no data yet (timeout)
-        Side effects:
-          - closes conn on socket closed
-        """
         if self.conn is None:
             return None
 
@@ -187,7 +180,7 @@ class TCPReceiver:
         return payload
 
 
-# ----------------------------- helpers -----------------------------
+# ----------------------------- filesystem helpers -----------------------------
 
 def clean_dir(p: Path):
     if p.exists():
@@ -195,100 +188,18 @@ def clean_dir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
 
 
-def read_explanation_text(win_root: Path) -> str:
-    txt_path = win_root / "explanation_text.txt"
+def read_explanation_text(workdir: Path, task_id: str, window_end: int) -> str:
+    """
+    run_task window mode writes:
+      <workdir>/<task_id>/windows/w{window_end:06d}/explanation_text.txt
+    """
+    txt_path = workdir / task_id / "windows" / f"w{window_end:06d}" / "explanation_text.txt"
     if not txt_path.exists():
         return ""
     txt = txt_path.read_text(encoding="utf-8", errors="replace").strip()
     if not txt or txt == "[NO EXPLANATION]":
         return ""
     return txt
-
-
-def run_window_analyze(
-    workdir: Path,
-    task_id: str,
-    timing: str,
-    participant: str,
-    frames_dir: Path,
-    window_end: int,
-    window_size: int,
-    analyze_timeout_sec: float,
-) -> str:
-    """
-    Create a window dir <workdir>/<task_id>/windows/wXXXXXX, copy last window_size frames,
-    run run_task.py in window mode. If error latched (rc==0), return explanation_text.
-    """
-    win_root = (workdir / task_id / "windows" / f"w{window_end:06d}")
-    win_frames = win_root / "frames"
-
-    if win_root.exists():
-        shutil.rmtree(win_root)
-    win_frames.mkdir(parents=True, exist_ok=True)
-
-    start = max(0, window_end - window_size)
-    copied = 0
-    for i in range(start, window_end):
-        src = frames_dir / f"{i:06d}.png"
-        if src.exists():
-            shutil.copy2(src, win_frames / src.name)
-            copied += 1
-
-    if copied == 0:
-        return ""
-
-    cmd = [
-        "python3", "run_task.py",
-        task_id, timing, participant,
-        "--speak_phase", timing,      # immediate / post_recovery
-        "--mode", "window",
-        "--window_end", str(window_end),
-        "--window_size", str(window_size),
-    ]
-    log(f"🧠 WINDOW ANALYZE: {' '.join(cmd)}")
-
-    try:
-        p = subprocess.run(cmd, cwd=str(workdir), timeout=float(analyze_timeout_sec), check=False)
-    except subprocess.TimeoutExpired:
-        log(f"⏰ WINDOW ANALYZE timeout at window_end={window_end}")
-        return ""
-
-    # Convention: rc=0 => error found (writes explanation_text.txt); rc=10 => normal/no error
-    if p.returncode == 0:
-        txt = read_explanation_text(win_root)
-        if txt:
-            log(f"🚨 ERROR LATCHED at frame={window_end} (len={len(txt)})")
-            return txt
-        return ""
-
-    if p.returncode == 10:
-        log(f"✅ No error latched at window_end={window_end}")
-        return ""
-
-    log(f"⚠️ WINDOW ANALYZE rc={p.returncode} at window_end={window_end}")
-    return ""
-
-
-def write_robot_error_flag(video_root: Path, task_id: str, error_confirmed: bool, reason: str = ""):
-    p = video_root / "robot_error.json"
-    data = {
-        "task_id": task_id,
-        "error_confirmed": bool(error_confirmed),
-        "reason": reason,
-        "ts": time.time(),
-    }
-    p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    log(f"🧾 Wrote robot_error.json: error_confirmed={error_confirmed} reason={reason}")
-
-
-def clear_robot_error_flag(video_root: Path):
-    p = video_root / "robot_error.json"
-    if p.exists():
-        try:
-            p.unlink()
-            log("🧹 Cleared robot_error.json")
-        except Exception as e:
-            log(f"⚠️ Failed to clear robot_error.json: {e}")
 
 
 # ----------------------------- main controller -----------------------------
@@ -309,28 +220,16 @@ def main():
     ap.add_argument("--audio_ack_fallback_sec", type=float, default=12.0)
 
     ap.add_argument("--block_on_audio", action="store_true",
-                    help="If set, delay PLAY_ACK for trigger phase until AUDIO_DONE or timeout.")
-
-    ap.add_argument("--cfg", default="experiments.yaml")
-    ap.add_argument("--force_error_on_seg_a_task",
-                    action="append",
-                    default=[],
-                    help="Repeatable. For these task_ids, write robot_error.json on SEG_DONE A (for external_flag).")
+                    help="For post_recovery: delay PLAY_ACK afterB until AUDIO_DONE post_recovery or timeout.")
+    ap.add_argument("--immediate_gate_fallback_sec", type=float, default=12.0,
+                    help="For immediate: if waiting to ACK afterA for AUDIO_DONE, release after this timeout.")
 
     args = ap.parse_args()
 
     workdir = Path(args.workdir).resolve()
     os.chdir(workdir)
 
-    # Discover tasks
-    tasks_dir = workdir / "tasks"
-    task_ids: Set[str] = set()
-    if tasks_dir.exists():
-        for p in tasks_dir.glob("experiment_*.yaml"):
-            task_ids.add(p.stem.replace("experiment_", ""))
-    log(f"✅ Discovered tasks: {sorted(task_ids)}")
-
-    # ZMQ sockets
+    # -------------------- ZMQ setup --------------------
     ctx = zmq.Context.instance()
 
     pull = ctx.socket(zmq.PULL)
@@ -351,6 +250,7 @@ def main():
         except Exception:
             pass
         ack_push = ctx.socket(zmq.PUSH)
+        ack_push.setsockopt(zmq.LINGER, 0)
         ack_push.connect(endpoint)
         ack_endpoint = endpoint
         log(f"✅ ACK target set: {endpoint}")
@@ -363,10 +263,11 @@ def main():
         ack_push.send_string(msg)
         log(f"↩️ Sent ACK: {msg}")
 
-    # Optional remote audio sender (PC2 -> PC1 audio listener)
+    # Remote audio sender (PC2 -> PC1 audio listener)
     audio_push = None
     if args.pc1_audio_endpoint:
         audio_push = ctx.socket(zmq.PUSH)
+        audio_push.setsockopt(zmq.LINGER, 0)
         audio_push.connect(args.pc1_audio_endpoint)
         log(f"🔈 Remote audio enabled. PC1 audio endpoint: {args.pc1_audio_endpoint}")
         log(f"🕒 Audio ACK fallback: {float(args.audio_ack_fallback_sec)}s")
@@ -381,56 +282,169 @@ def main():
             return
         b64 = base64.b64encode(txt.encode("utf-8")).decode("ascii")
         audio_push.send_string(f"SAY {task_id} {phase} {b64}")
+        log(f"📤 SAY sent: task={task_id} phase={phase} len={len(txt)}")
 
-    # TCP receiver
+    # -------------------- TCP setup --------------------
     tcp = TCPReceiver("0.0.0.0", args.tcp_port)
     log(f"🟢 TCP listening on 0.0.0.0:{args.tcp_port}")
 
-    # Runtime state
+    # -------------------- runtime state --------------------
     running = False
     current_task_id: Optional[str] = None
     current_participant: Optional[str] = None
     current_timing: Optional[str] = None
 
     frames_dir: Optional[Path] = None
-    frame_count = 0
+    frame_count = 0  # saved frames count; also used as 1-based window_end after increment
 
-    # Latching
+    # Latching / speaking state
     latched: Dict[str, bool] = {}
     latched_text: Dict[str, str] = {}
     played_phase: Dict[Tuple[str, str], bool] = {}
 
-    # Optional block-on-audio bookkeeping
+    # post_recovery optional block-on-audio bookkeeping (afterB gating)
     pending_audio_ts: Dict[Tuple[str, str], float] = {}
+
+    # immediate AND-gate bookkeeping (afterA gating)
+    seg_a_done: Dict[str, bool] = {}
+    audio_done_immediate: Dict[str, bool] = {}
+    need_ack_afterA: Dict[str, bool] = {}
+    pending_afterA_ts: Dict[str, float] = {}
+
+    # post_recovery pending speak (B arrives before text ready)
+    post_pending_speak: Dict[str, bool] = {}
+    post_pending_speak_ts: Dict[str, float] = {}
+    final_window_requested: Dict[str, bool] = {}
+    seg_b_done: Dict[str, bool] = {}
 
     def is_current_task(tid: str) -> bool:
         return running and (current_task_id == tid)
 
-    def playback_trigger(timing: str) -> Optional[Tuple[str, str]]:
-        # returns (trigger_segment_label, phase)
-        if timing == "none":
-            return None
-        if timing == "immediate":
-            return ("A", "immediate")
-        if timing == "post_recovery":
-            return ("B", "post_recovery")
-        return ("A", "immediate")
+    # -------------------- analysis worker (non-blocking + killable) --------------------
+    analyze_q: "queue.Queue[Tuple[str, int]]" = queue.Queue(maxsize=4)
 
-    def maybe_latch_and_maybe_speak_now(tid: str, new_text: str):
-        if latched.get(tid, False):
+    proc_lock = threading.Lock()
+    current_analyze_proc: Optional[subprocess.Popen] = None
+
+    def maybe_latch_and_speak(tid: str, txt: str):
+        """
+        Called when window analyze produces an explanation text.
+        - latch once
+        - immediate: speak immediately once
+        - post_recovery: latch; if B already happened and pending -> speak ASAP
+        """
+        if not txt:
             return
-        latched[tid] = True
-        latched_text[tid] = new_text
 
-        if current_timing == "immediate":
-            phase = "immediate"
-            if played_phase.get((tid, phase), False):
-                return
-            played_phase[(tid, phase)] = True
-            log(f"🗣️ ERROR LATCHED -> speak now (task={tid} phase={phase})")
-            send_say(tid, phase, new_text)
+        if not latched.get(tid, False):
+            latched[tid] = True
+            latched_text[tid] = txt
+        else:
+            # keep latest text if you want; usually identical; harmless
+            latched_text[tid] = txt
 
-    def service_audio_fallback():
+        timing = (current_timing or "")
+        if timing == "immediate":
+            if not played_phase.get((tid, "immediate"), False):
+                played_phase[(tid, "immediate")] = True
+                log(f"🗣️ ERROR LATCHED -> speak now (task={tid} phase=immediate)")
+                send_say(tid, "immediate", txt)
+            return
+
+        if timing == "post_recovery":
+            if seg_b_done.get(tid, False) and post_pending_speak.get(tid, False):
+                if not played_phase.get((tid, "post_recovery"), False):
+                    played_phase[(tid, "post_recovery")] = True
+                    post_pending_speak[tid] = False
+                    post_pending_speak_ts.pop(tid, None)
+                    log(f"🗣️ post_recovery pending -> speak ASAP when text becomes ready (task={tid})")
+                    send_say(tid, "post_recovery", txt)
+
+    def analyze_worker():
+        nonlocal current_analyze_proc
+        while True:
+            tid, window_end = analyze_q.get()
+            try:
+                # drop if task changed / ended
+                if not is_current_task(tid) or current_timing is None or current_participant is None:
+                    continue
+
+                cmd = [
+                    "python3", "run_task.py",
+                    tid, current_timing, current_participant,
+                    "--speak_phase", current_timing,
+                    "--mode", "window",
+                    "--window_end", str(int(window_end)),
+                    "--window_size", str(int(args.window_size)),
+                    "--pc1_audio", "",  # controller owns audio
+                ]
+                log(f"🧠 WINDOW ANALYZE: {' '.join(cmd)}")
+
+                with proc_lock:
+                    current_analyze_proc = subprocess.Popen(cmd, cwd=str(workdir))
+
+                try:
+                    rc = current_analyze_proc.wait(timeout=float(args.analyze_timeout_sec))
+                except subprocess.TimeoutExpired:
+                    log(f"⏰ WINDOW ANALYZE timeout at window_end={window_end}")
+                    # terminate -> kill
+                    with proc_lock:
+                        p = current_analyze_proc
+                    if p is not None:
+                        try:
+                            p.terminate()
+                            p.wait(timeout=0.5)
+                        except Exception:
+                            try:
+                                p.kill()
+                            except Exception:
+                                pass
+                    rc = -1
+                finally:
+                    with proc_lock:
+                        current_analyze_proc = None
+
+                if rc == 0 and is_current_task(tid):
+                    txt = read_explanation_text(workdir, tid, window_end)
+                    if txt:
+                        log(f"🚨 ERROR LATCHED at window_end={window_end} (len={len(txt)})")
+                        maybe_latch_and_speak(tid, txt)
+
+            finally:
+                analyze_q.task_done()
+
+    threading.Thread(target=analyze_worker, daemon=True).start()
+
+    # -------------------- analysis enqueue logic --------------------
+    last_enqueued_end = -1
+
+    def maybe_enqueue_analyze():
+        nonlocal last_enqueued_end
+        if not running or frames_dir is None or current_task_id is None:
+            return
+
+        # If immediate already latched, you can optionally stop analyzing to reduce load:
+        # if current_timing == "immediate" and latched.get(current_task_id, False):
+        #     return
+
+        if frame_count < int(args.window_warmup):
+            return
+        if (frame_count - int(args.window_warmup)) % int(args.window_stride) != 0:
+            return
+
+        window_end = int(frame_count)  # 1-based
+        if window_end <= last_enqueued_end:
+            return
+        last_enqueued_end = window_end
+
+        try:
+            analyze_q.put_nowait((current_task_id, window_end))
+            log(f"🧠 Enqueued WINDOW ANALYZE window_end={window_end}")
+        except queue.Full:
+            log("⚠️ Analyze queue full; skip this window to avoid blocking")
+
+    # -------------------- fallbacks / timers --------------------
+    def service_post_audio_fallback():
         if not args.block_on_audio:
             return
         if not pending_audio_ts:
@@ -445,45 +459,58 @@ def main():
             log(f"⏱️ AUDIO_DONE timeout -> fallback PLAY_ACK (task={tid} phase={phase})")
             send_play_ack(tid, phase)
 
-    last_analyzed_end = -1
-
-    def maybe_analyze_and_latch():
-        nonlocal last_analyzed_end
-        if not running or frames_dir is None or current_task_id is None or current_timing is None or current_participant is None:
+    def service_immediate_gate_fallback():
+        if not running or (current_timing or "") != "immediate" or current_task_id is None:
             return
-        if frame_count < int(args.window_warmup):
+        tid = current_task_id
+        if not need_ack_afterA.get(tid, False):
             return
-        # analyze on stride
-        if (frame_count - int(args.window_warmup)) % int(args.window_stride) != 0:
-            return
+        ts0 = pending_afterA_ts.get(tid, 0.0)
+        if ts0 and (time.time() - ts0) >= float(args.immediate_gate_fallback_sec):
+            need_ack_afterA[tid] = False
+            pending_afterA_ts.pop(tid, None)
+            log(f"⏱️ Immediate gate timeout -> fallback PLAY_ACK afterA (task={tid})")
+            send_play_ack(tid, "afterA")
 
-        window_end = frame_count
-        if window_end <= last_analyzed_end:
-            return
-        last_analyzed_end = window_end
-
-        explanation = run_window_analyze(
-            workdir=workdir,
-            task_id=current_task_id,
-            timing=current_timing,
-            participant=current_participant,
-            frames_dir=frames_dir,
-            window_end=window_end,
-            window_size=int(args.window_size),
-            analyze_timeout_sec=float(args.analyze_timeout_sec),
-        )
-        if explanation:
-            maybe_latch_and_maybe_speak_now(current_task_id, explanation)
-
-    # Poll loop
+    # -------------------- startup info --------------------
     log(f"🪟 Window: size={args.window_size}, stride={args.window_stride}, warmup={args.window_warmup}")
     log("✅ Controller ready. Waiting for TCP + triggers...")
 
     poller = zmq.Poller()
     poller.register(pull, zmq.POLLIN)
 
-    force_on_a: Set[str] = set(args.force_error_on_seg_a_task or [])
+    # -------------------- helpers: END cleanup --------------------
+    def kill_analysis_and_drain_queue():
+        nonlocal current_analyze_proc
+        # stop running proc
+        with proc_lock:
+            p = current_analyze_proc
+        if p is not None:
+            log("🛑 Stopping running window analyze (terminate->kill)")
+            try:
+                p.terminate()
+                p.wait(timeout=0.5)
+            except Exception:
+                try:
+                    p.kill()
+                except Exception:
+                    pass
+            with proc_lock:
+                current_analyze_proc = None
 
+        # drain queue
+        drained = 0
+        try:
+            while True:
+                analyze_q.get_nowait()
+                analyze_q.task_done()
+                drained += 1
+        except queue.Empty:
+            pass
+        if drained:
+            log(f"🧹 Drained {drained} queued analyze jobs")
+
+    # -------------------- main loop --------------------
     while True:
         socks = dict(poller.poll(10))
 
@@ -504,11 +531,23 @@ def main():
                 if not is_current_task(tid):
                     log(f"⚠️ Ignored AUDIO_DONE for task={tid} (running={running}, current={current_task_id})")
                     continue
+
+                # ---- immediate: release afterA gate if waiting ----
+                if phase == "immediate":
+                    audio_done_immediate[tid] = True
+                    if seg_a_done.get(tid, False) and need_ack_afterA.get(tid, False):
+                        need_ack_afterA[tid] = False
+                        pending_afterA_ts.pop(tid, None)
+                        log(f"✅ Gate open (SEG_DONE A && AUDIO_DONE immediate) -> PLAY_ACK afterA (task={tid})")
+                        send_play_ack(tid, "afterA")
+
+                # ---- post_recovery: if we blocked afterB on audio, release ----
                 if pending_audio_ts.pop((tid, phase), None) is not None:
                     log(f"✅ AUDIO_DONE received -> send PLAY_ACK for task={tid} phase={phase}")
                     send_play_ack(tid, phase)
                 else:
                     log(f"ℹ️ AUDIO_DONE received but no pending wait: task={tid} phase={phase}")
+
                 continue
 
             end_tid = parse_end(msg)
@@ -516,15 +555,35 @@ def main():
                 if not is_current_task(end_tid):
                     log(f"⚠️ Ignored END for task={end_tid} (running={running}, current={current_task_id})")
                     continue
+
                 log(f"🏁 END received for task={end_tid}")
+                kill_analysis_and_drain_queue()
+
+                # Reset state (hard reset)
                 running = False
                 current_task_id = None
                 current_participant = None
                 current_timing = None
                 frames_dir = None
                 frame_count = 0
-                last_analyzed_end = -1
+                last_enqueued_end = -1
+
+                # clear dictionaries
                 pending_audio_ts.clear()
+                seg_a_done.clear()
+                audio_done_immediate.clear()
+                need_ack_afterA.clear()
+                pending_afterA_ts.clear()
+
+                post_pending_speak.clear()
+                post_pending_speak_ts.clear()
+                final_window_requested.clear()
+                seg_b_done.clear()
+
+                latched.clear()
+                latched_text.clear()
+                played_phase.clear()
+
                 tcp.close_conn()
                 continue
 
@@ -535,49 +594,73 @@ def main():
                     log(f"⚠️ Ignored SEG_DONE for task={tid} seg={seg_label} (running={running}, current={current_task_id})")
                     continue
 
-                timing = current_timing or "immediate"
+                timing = (current_timing or "immediate").strip()
                 log(f"🧭 SEG_DONE arrived: task={tid} seg={seg_label} timing={timing}")
 
-                # Optional external_flag: mark error on segment A
-                if seg_label == "A" and tid in force_on_a:
-                    video_root = workdir / tid
-                    write_robot_error_flag(
-                        video_root=video_root,
-                        task_id=tid,
-                        error_confirmed=True,
-                        reason="forced_on_seg_a",
-                    )
-
-                trig = playback_trigger(timing)
-
-                if trig is None:
+                # timing == none: ACK immediately
+                if timing == "none":
                     send_play_ack(tid, f"after{seg_label}")
                     continue
 
-                trig_seg, trig_phase = trig
-
-                # Non-trigger segments => ACK now
-                if seg_label != trig_seg:
-                    send_play_ack(tid, f"after{seg_label}")
-                    continue
-
-                # Trigger segment behavior
+                # timing == immediate: hold afterA only if we already sent SAY and not AUDIO_DONE
                 if timing == "immediate":
-                    # Immediate: speak when latched; don't block orchestration
-                    send_play_ack(tid, f"after{seg_label}")
-                    continue
+                    if seg_label == "A":
+                        seg_a_done[tid] = True
 
-                # post_recovery trigger at B:
-                text = (latched_text.get(tid, "") or "").strip()
-                if text and not played_phase.get((tid, trig_phase), False):
-                    played_phase[(tid, trig_phase)] = True
-                    log(f"🗣️ post_recovery trigger -> speak now (task={tid} phase={trig_phase})")
-                    send_say(tid, trig_phase, text)
+                        has_audio = played_phase.get((tid, "immediate"), False)
+                        if has_audio and not audio_done_immediate.get(tid, False):
+                            need_ack_afterA[tid] = True
+                            pending_afterA_ts[tid] = time.time()
+                            log(f"⏸️ Hold PLAY_ACK afterA until AUDIO_DONE immediate (task={tid})")
+                            continue
 
-                    if args.block_on_audio:
-                        pending_audio_ts[(tid, trig_phase)] = time.time()
+                        send_play_ack(tid, "afterA")
                         continue
 
+                    # SEG_DONE B: ACK immediately
+                    send_play_ack(tid, f"after{seg_label}")
+                    continue
+
+                # timing == post_recovery
+                if timing == "post_recovery":
+                    if seg_label == "A":
+                        send_play_ack(tid, "afterA")
+                        continue
+
+                    # seg_label == B
+                    seg_b_done[tid] = True
+                    text = (latched_text.get(tid, "") or "").strip()
+
+                    if text and not played_phase.get((tid, "post_recovery"), False):
+                        played_phase[(tid, "post_recovery")] = True
+                        log(f"🗣️ post_recovery -> speak at SEG_DONE B (task={tid})")
+                        send_say(tid, "post_recovery", text)
+
+                        if args.block_on_audio:
+                            pending_audio_ts[(tid, "post_recovery")] = time.time()
+                            log(f"⏸️ Hold PLAY_ACK afterB until AUDIO_DONE post_recovery (task={tid})")
+                            continue
+
+                        send_play_ack(tid, "afterB")
+                        continue
+
+                    # no text yet at B -> ACK immediately, mark pending, enqueue one extra analyze
+                    post_pending_speak[tid] = True
+                    post_pending_speak_ts[tid] = time.time()
+
+                    if not final_window_requested.get(tid, False):
+                        final_window_requested[tid] = True
+                        window_end = max(1, int(frame_count))
+                        try:
+                            analyze_q.put_nowait((tid, window_end))
+                            log(f"🧠 post_recovery: text not ready at B -> enqueue extra analyze window_end={window_end} (task={tid})")
+                        except queue.Full:
+                            log("⚠️ Analyze queue full; cannot enqueue extra analyze at B")
+
+                    send_play_ack(tid, "afterB")
+                    continue
+
+                # fallback
                 send_play_ack(tid, f"after{seg_label}")
                 continue
 
@@ -591,30 +674,41 @@ def main():
                 continue
 
             task_id, participant, timing = parsed
+            timing = (timing or "").strip()
+
             if timing not in {"none", "immediate", "post_recovery"}:
                 log(f"❌ Invalid timing condition: {timing}")
                 continue
-            if task_ids and task_id not in task_ids:
-                log(f"❌ Unknown task_id: {task_id} (known: {sorted(task_ids)})")
-                continue
 
+            # Start
             running = True
             current_task_id = task_id
             current_participant = participant
             current_timing = timing
 
+            # per-task init
             latched[task_id] = False
             latched_text[task_id] = ""
+
+            seg_a_done[task_id] = False
+            audio_done_immediate[task_id] = False
+            need_ack_afterA[task_id] = False
+            pending_afterA_ts.pop(task_id, None)
+
+            seg_b_done[task_id] = False
+            post_pending_speak[task_id] = False
+            post_pending_speak_ts.pop(task_id, None)
+            final_window_requested[task_id] = False
+
+            # global-ish clears
             played_phase.clear()
             pending_audio_ts.clear()
-            last_analyzed_end = -1
+
+            last_enqueued_end = -1
 
             video_root = workdir / task_id
             frames_dir = video_root / "frames"
             video_root.mkdir(parents=True, exist_ok=True)
-
-            # If using external_flag detector, clear stale file at START
-            clear_robot_error_flag(video_root)
 
             clean_dir(frames_dir)
             frame_count = 0
@@ -625,10 +719,11 @@ def main():
             tcp.accept_if_needed()
             continue
 
-        # 2) audio fallback timers (only in block_on_audio mode)
-        service_audio_fallback()
+        # 2) fallbacks / timers
+        service_post_audio_fallback()
+        service_immediate_gate_fallback()
 
-        # 3) TCP frame receive + maybe analyze
+        # 3) TCP frame receive + enqueue analyze
         if running and frames_dir is not None:
             if tcp.conn is None:
                 tcp.accept_if_needed()
@@ -638,11 +733,9 @@ def main():
                 time.sleep(0.02)
                 continue
 
-            # save frame
             (frames_dir / f"{frame_count:06d}.png").write_bytes(payload)
             frame_count += 1
-
-            maybe_analyze_and_latch()
+            maybe_enqueue_analyze()
 
 
 if __name__ == "__main__":

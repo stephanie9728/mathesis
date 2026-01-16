@@ -20,15 +20,11 @@
   "empty_frame_ratio": 0.0,
   "nodes": [
     {
-      "label": "banana",
-      "count": 3
-    },
-    {
-      "label": "plate",
-      "count": 3
-    },
-    {
       "label": "obstacle",
+      "count": 3
+    },
+    {
+      "label": "apple",
       "count": 1
     }
   ],

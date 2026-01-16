@@ -8,7 +8,7 @@
     "llm_hint": "",
     "vidb_source": "yolo_nodes.json",
     "detected_objects_summary": [
-      "drawer(9)"
+      "drawer(8)"
     ],
     "empty_frame_ratio": 0.0
   },
@@ -17,7 +17,7 @@
     "evidence": [
       "The first attempt did not find the expected object in the initial location.",
       "This suggests my prior assumption about the object’s location was incorrect.",
-      "Visible context included: drawer(9)",
+      "Visible context included: drawer(8)",
       "Frames with no detections ratio: 0.00"
     ]
   },

@@ -9,7 +9,8 @@
     "vidb_source": "yolo_nodes.json",
     "detected_objects_summary": [
       "cup(9)",
-      "table(3)"
+      "table(3)",
+      "hand(2)"
     ],
     "empty_frame_ratio": 0.0
   },
@@ -18,7 +19,7 @@
     "evidence": [
       "The first attempt did not find the expected object in the initial location.",
       "This suggests my prior assumption about the object’s location was incorrect.",
-      "Visible context included: cup(9), table(3)",
+      "Visible context included: cup(9), table(3), hand(2)",
       "Frames with no detections ratio: 0.00"
     ]
   },

@@ -24,12 +24,12 @@
       "count": 3
     },
     {
-      "label": "obstacle",
+      "label": "plate",
       "count": 3
     },
     {
-      "label": "plate",
-      "count": 3
+      "label": "obstacle",
+      "count": 1
     }
   ]
 }

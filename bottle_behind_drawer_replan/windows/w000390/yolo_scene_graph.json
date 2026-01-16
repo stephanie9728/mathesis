@@ -22,15 +22,11 @@
   "nodes": [
     {
       "label": "shelf",
-      "count": 7
+      "count": 9
     },
     {
       "label": "bottle",
       "count": 6
-    },
-    {
-      "label": "hand",
-      "count": 2
     }
   ],
   "edges": []

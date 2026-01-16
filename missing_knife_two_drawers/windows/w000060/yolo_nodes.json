@@ -23,6 +23,10 @@
     {
       "label": "drawer",
       "count": 9
+    },
+    {
+      "label": "table",
+      "count": 3
     }
   ]
 }

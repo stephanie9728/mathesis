@@ -4,8 +4,8 @@
   "error_type": "non_observable",
   "object": "knife",
   "error_confirmed": false,
-  "reason": "missing_object: missing but waiting confirm_k (streak=1/2)",
-  "empty_frame_ratio": 0.3333333333333333,
+  "reason": "missing_object: gate not passed",
+  "empty_frame_ratio": 1.0,
   "debug": {
     "detector_type": "missing_object",
     "watch_targets": [
@@ -15,26 +15,24 @@
     "watch_count": 0,
     "present_count_ge": 2,
     "present": false,
-    "total_nodes": 1,
+    "total_nodes": 0,
     "min_total_nodes": 3,
     "enough_context": false,
-    "empty_frame_ratio": 0.3333333333333333,
+    "empty_frame_ratio": 1.0,
     "require_empty_ratio_le": 0.8,
-    "cam_ok": true,
+    "cam_ok": false,
     "gate_presence_any": [
       "drawer",
       "cabinet",
       "handle",
       "knife"
     ],
-    "gate_ok": true,
+    "gate_ok": false,
     "confirm_k": 2,
     "state_path": "/home/ru53kem/Projects/mathesis/missing_knife_two_drawers/windows/.detector_state.json",
-    "labels_top": [
-      "drawer"
-    ],
-    "missing_streak": 1,
+    "labels_top": [],
+    "missing_streak": 0,
     "label_aliases": {}
   },
-  "ts": 1768406596.0897672
+  "ts": 1768491797.5260248
 }

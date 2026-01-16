@@ -11,11 +11,11 @@
     "watch_targets": [
       "apple"
     ],
-    "matched_target": "",
-    "watch_count": 0,
+    "matched_target": "apple",
+    "watch_count": 3,
     "present_count_ge": 1,
-    "present": false,
-    "total_nodes": 1,
+    "present": true,
+    "total_nodes": 2,
     "min_total_nodes": 1,
     "enough_context": true,
     "empty_frame_ratio": 0.0,
@@ -30,10 +30,11 @@
     "confirm_k": 1,
     "state_path": "/home/ru53kem/Projects/mathesis/missing_apple_blindspot_plate/windows/.detector_state.json",
     "labels_top": [
+      "apple",
       "obstacle"
     ],
     "missing_streak": 0,
     "label_aliases": {}
   },
-  "ts": 1768403615.7732372
+  "ts": 1768490969.9249876
 }

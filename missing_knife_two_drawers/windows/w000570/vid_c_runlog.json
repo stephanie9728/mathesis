@@ -4,8 +4,8 @@
   "error_type": "non_observable",
   "object": "knife",
   "error_confirmed": true,
-  "reason": "missing_object: 'knife' missing (streak=3/2) (context low but allowed)",
-  "empty_frame_ratio": 0.0,
+  "reason": "missing_object: 'knife' missing (streak=28/2) (context low but allowed)",
+  "empty_frame_ratio": 0.3333333333333333,
   "debug": {
     "detector_type": "missing_object",
     "watch_targets": [
@@ -18,7 +18,7 @@
     "total_nodes": 2,
     "min_total_nodes": 3,
     "enough_context": false,
-    "empty_frame_ratio": 0.0,
+    "empty_frame_ratio": 0.3333333333333333,
     "require_empty_ratio_le": 0.8,
     "cam_ok": true,
     "gate_presence_any": [
@@ -34,8 +34,8 @@
       "drawer",
       "table"
     ],
-    "missing_streak": 3,
+    "missing_streak": 28,
     "label_aliases": {}
   },
-  "ts": 1768406665.4678314
+  "ts": 1768468378.927062
 }

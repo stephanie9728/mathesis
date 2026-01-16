@@ -2,7 +2,7 @@
   "task_id": "missing_apple_blindspot_plate",
   "video_root": "/home/ru53kem/Projects/mathesis/missing_apple_blindspot_plate/windows/w000090",
   "error_confirmed": true,
-  "explanation_timing": "post_recovery",
+  "explanation_timing": "immediate",
   "error_type": "observable",
   "llm_model": "gpt-4o-mini",
   "words_min": 50,

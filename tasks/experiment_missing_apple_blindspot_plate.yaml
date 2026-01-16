@@ -1,44 +1,44 @@
 meta:
   task_id: missing_apple_blindspot_plate
-  task_name: Pick Apple – Apple Outside Initial View (Blind Spot)
+  task_name: Pick Apple – Apple Outside Initial View
   error_type: observable
   action: retrieve
   object: apple
 
 detector:
   type: missing_object
-  watch_object_from_meta: object
+  target_from_meta: object
   min_total_nodes: 1
   confirm_k: 1
+
   gate_presence_any:
     - plate
     - banana
     - table
+
   present_count_ge: 1
 
 controller:
-  window_warmup: 90
-  window_stride: 90
-  window_size: 90
-
+  window:
+    warmup: 30
+    stride: 90
+    size: 90
 
 tools:
-  candidates: []
   correct: apple
 
 llm:
-  mode: slotfill
   model: gpt-4o-mini
 
   goal_en: >
     Help the user retrieve an apple from the table and present it.
 
   scene_description: >
-    The scene contains a table with a plate holding a banana.
+    A table with a plate holding a banana.
     An apple is also on the table, but it is outside the robot’s initial field of view.
 
   task_context: >
-    The robot initially inspects the plate and does not detect the apple due to a camera blind spot.
-    The apple’s absence from the current view is directly visible to the user.
-    The robot should recover by adjusting its viewpoint (active re-search) to locate the apple,
+    The robot first inspects the plate and does not see the apple.
+    The apple is not visible from the current viewpoint.
+    The robot should adjust its viewpoint to locate the apple,
     then grasp and present it.

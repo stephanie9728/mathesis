@@ -50,6 +50,20 @@ def safe_send_say(say, text: str, task_id: str, phase: str) -> None:
         print(f"⚠️ send_say failed (ignored): {e}", flush=True)
 
 
+def audio_enabled(args) -> bool:
+    """
+    Audio is enabled only when:
+      - pc1_audio is non-empty
+      - and not explicitly DISABLE
+    """
+    ep = (args.pc1_audio or "").strip()
+    if not ep:
+        return False
+    if ep.upper() == "DISABLE":
+        return False
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("task_id")
@@ -61,36 +75,24 @@ def main():
     ap.add_argument("--window_end", type=int, default=0, help="1-based frame index (e.g., 90 means up to 000089.png)")
     ap.add_argument("--window_size", type=int, default=30)
 
-    # optional marker
     ap.add_argument("--final_window", action="store_true",
                     help="treat this window as the final fallback window")
 
     # remote audio config (PC1 endpoint)
     ap.add_argument("--pc1_audio", default="tcp://10.163.18.91:5557",
-                    help="PC1 audio listener endpoint (PULL on PC1)")
+                    help="PC1 audio listener endpoint. Use DISABLE to force off.")
 
     args = ap.parse_args()
 
     task_id = args.task_id
-    timing = args.timing
+    timing = (args.timing or "").strip()
     participant = args.participant
+
     def already_spoken(video_root: Path, phase: str) -> bool:
         return (video_root / f".spoken_{phase}.flag").exists()
 
     def mark_spoken(video_root: Path, phase: str) -> None:
         (video_root / f".spoken_{phase}.flag").write_text("1", encoding="utf-8")
-
-
-    # ---------------- Audio: PC2 only sends SAY to PC1 ----------------
-    say = None
-    if timing != "none":
-        try:
-            from audio_send_say import SayClient
-            say = SayClient(args.pc1_audio)
-        except Exception as e:
-            # audio is non-critical; keep pipeline running
-            print(f"⚠️ Audio disabled (SayClient init failed): {e}", flush=True)
-            say = None
 
     ROOT = Path(__file__).parent.resolve()
     TASKS_DIR = ROOT / "tasks"
@@ -111,7 +113,6 @@ def main():
     if args.speak_phase:
         cfg["meta"]["speak_phase"] = args.speak_phase
 
-
     yaml_tmp = TASKS_DIR / "_tmp_run.yaml"
     yaml_tmp.write_text(yaml.dump(cfg, allow_unicode=True), encoding="utf-8")
 
@@ -130,7 +131,6 @@ def main():
         if args.window_end <= 0:
             raise SystemExit("window mode requires --window_end > 0")
 
-        # Clamp window_end so we never create empty windows
         if args.window_end > total_frames:
             print(f"⚠️ window_end={args.window_end} > total_frames={total_frames}, clamp to {total_frames}")
             args.window_end = total_frames
@@ -154,45 +154,47 @@ def main():
     print(f"✅ Video Root  : {video_root}")
     if args.mode == "window":
         print(f"🪟 Window      : end={args.window_end}, size={args.window_size}, copied={copied}, final={bool(args.final_window)}")
-
         if copied == 0:
             print("⚠️ Empty window after copy -> return NO_ERROR (10)")
             raise SystemExit(RC_NO_ERROR)
 
     # ---------- 4) Vid-B → Vid-E ----------
     run_stage([py, "Vid-B.py", str(video_root)], cwd=ROOT, must_succeed=True)
-
-    # detector-only Vid-C reads YAML for detector config
     run_stage([py, "Vid-C.py", str(yaml_tmp), str(video_root)], cwd=ROOT, must_succeed=True)
-
     run_stage([py, "Vid-D.py", str(yaml_tmp), str(video_root)], cwd=ROOT, must_succeed=True)
-
-    # Vid-E: rc=10 is NORMAL (no error detected)
     rc_e = run_stage([py, "Vid-E.py", str(yaml_tmp), str(video_root)], cwd=ROOT, must_succeed=False)
 
-    # ---------- 5) When to speak ----------
-    # Convention used here:
-    # - immediate: speak when error is found (this run)
-    # - post_recovery: speak ONLY when this run is flagged as final_window
-    def maybe_speak(txt: str):
-        if not say:
+    # ---------- 5) Audio policy ----------
+    # Architecture:
+    # - In window mode: controller handles audio, so run_task should NOT speak.
+    # - In full mode: run_task can speak (optional).
+    say = None
+    if args.mode == "full" and timing != "none" and audio_enabled(args):
+        try:
+            from audio_send_say import SayClient
+            say = SayClient(args.pc1_audio)
+        except Exception as e:
+            print(f"⚠️ Audio disabled (SayClient init failed): {e}", flush=True)
+            say = None
+
+    def maybe_speak(say_client, txt: str):
+        if say_client is None:
             return
         if not txt or txt.strip() == "" or txt.strip() == "[NO EXPLANATION]":
             return
 
-        # speak-once gate
         phase = "immediate" if timing == "immediate" else "post_recovery"
         if already_spoken(base_video_root, phase):
             return
 
         if timing == "immediate":
-            safe_send_say(say, txt, task_id, "immediate")
+            safe_send_say(say_client, txt, task_id, "immediate")
             mark_spoken(base_video_root, "immediate")
         elif timing == "post_recovery" and bool(args.final_window):
-            safe_send_say(say, txt, task_id, "post_recovery")
+            safe_send_say(say_client, txt, task_id, "post_recovery")
             mark_spoken(base_video_root, "post_recovery")
 
-
+    # ---------- 6) Exit codes ----------
     if rc_e == RC_ERROR_FOUND:
         txt_path = video_root / "explanation_text.txt"
         txt = txt_path.read_text(encoding="utf-8").strip() if txt_path.exists() else ""
@@ -200,9 +202,8 @@ def main():
         if txt and txt != "[NO EXPLANATION]":
             print(txt)
 
-        # Speak according to timing policy
-        maybe_speak(txt)
-
+        # Only speaks in FULL mode (window mode handled by controller)
+        maybe_speak(say, txt)
         raise SystemExit(RC_ERROR_FOUND)
 
     if rc_e == RC_NO_ERROR:

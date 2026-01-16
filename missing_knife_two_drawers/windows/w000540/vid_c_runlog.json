@@ -4,7 +4,7 @@
   "error_type": "non_observable",
   "object": "knife",
   "error_confirmed": true,
-  "reason": "missing_object: 'knife' missing (streak=2/2) (context low but allowed)",
+  "reason": "missing_object: 'knife' missing (streak=27/2) (context low but allowed)",
   "empty_frame_ratio": 0.0,
   "debug": {
     "detector_type": "missing_object",
@@ -34,8 +34,8 @@
       "drawer",
       "table"
     ],
-    "missing_streak": 2,
+    "missing_streak": 27,
     "label_aliases": {}
   },
-  "ts": 1768406660.720186
+  "ts": 1768468374.4449818
 }

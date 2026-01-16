@@ -18,15 +18,11 @@
     "text_thresh": 0.25
   },
   "sampled_frames": 3,
-  "empty_frame_ratio": 0.3333333333333333,
+  "empty_frame_ratio": 0.6666666666666666,
   "nodes": [
     {
       "label": "drawer",
-      "count": 5
-    },
-    {
-      "label": "table",
-      "count": 2
+      "count": 3
     }
   ],
   "edges": []

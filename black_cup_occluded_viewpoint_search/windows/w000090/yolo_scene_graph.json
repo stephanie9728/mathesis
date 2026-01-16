@@ -26,6 +26,10 @@
     {
       "label": "table",
       "count": 3
+    },
+    {
+      "label": "hand",
+      "count": 2
     }
   ],
   "edges": []

@@ -2,7 +2,7 @@
   "task_id": "bottle_behind_drawer_replan",
   "video_root": "/home/ru53kem/Projects/mathesis/bottle_behind_drawer_replan/windows/w000240",
   "error_confirmed": true,
-  "explanation_timing": "immediate",
+  "explanation_timing": "post_recovery",
   "error_type": "observable",
   "llm_model": "gpt-4o-mini",
   "words_min": 50,

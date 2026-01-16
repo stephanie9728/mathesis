@@ -2,7 +2,7 @@
   "task_id": "missing_knife_two_drawers",
   "video_root": "/home/ru53kem/Projects/mathesis/missing_knife_two_drawers/windows/w000210",
   "error_confirmed": true,
-  "explanation_timing": "post_recovery",
+  "explanation_timing": "immediate",
   "error_type": "non_observable",
   "llm_model": "gpt-4o-mini",
   "words_min": 50,

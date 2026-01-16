@@ -31,11 +31,11 @@
     "state_path": "/home/ru53kem/Projects/mathesis/missing_apple_blindspot_plate/windows/.detector_state.json",
     "labels_top": [
       "banana",
-      "obstacle",
-      "plate"
+      "plate",
+      "obstacle"
     ],
     "missing_streak": 1,
     "label_aliases": {}
   },
-  "ts": 1768403596.340583
+  "ts": 1768491085.2731133
 }

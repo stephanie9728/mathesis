@@ -1,44 +1,43 @@
 controller:
-  window_size: 180
-  window_stride: 180
-  window_warmup: 180
+  window_size: 150
+  window_stride: 90
+  window_warmup: 90
 detector:
   confirm_k: 2
-  gate_presence_any:
-  - drawer
-  - cabinet
-  - handle
-  - knife
-  min_total_nodes: 3
-  present_count_ge: 2
-  require_empty_ratio_le: 0.8
-  type: missing_object
+  gate_presence_any: []
+  label_aliases:
+    black_bottle:
+    - bottle
+  min_total_nodes: 1
+  present_count_ge: 1
+  require_empty_ratio_le: 0.95
+  type: always
   watch_object_from_meta: object
 llm:
-  goal_en: 'Help the user retrieve a knife from a drawer and present it.
+  goal_en: 'Help the user retrieve the black bottle and present it.
 
     '
   mode: slotfill
   model: gpt-4o-mini
-  scene_description: 'The scene contains a table with two stacked drawers. The knife
-    is expected to be inside one of the drawers.
+  scene_description: 'The scene contains a table with a partially open drawer. A black
+    plastic bottle is placed recessed behind the drawer front, making a frontal approach
+    awkward.
 
     '
-  task_context: 'The robot searches the drawers to locate the knife in order to assist
-    the user. The absence of the knife in the drawer is not directly visible to the
-    user.
-
-    '
+  task_context: Segment A represents an initial failed grasp attempt. The robot is
+    unable to grasp the bottle due to an unfavorable approach. The robot then replans
+    and changes its approach in segment B to successfully retrieve the bottle. The
+    failure and recovery are directly observable to the user.
 meta:
   action: retrieve
-  error_type: non_observable
-  explanation_timing: post_recovery
+  error_type: observable
+  explanation_timing: immediate
   final_window: false
-  object: knife
+  object: black_bottle
   participant_id: P01
-  speak_phase: post_recovery
-  task_id: missing_knife_two_drawers
-  task_name: Pick Knife – Knife Not in First Drawer
+  speak_phase: immediate
+  task_id: bottle_behind_drawer_replan
+  task_name: Pick Black Bottle – Bottle Recessed Behind Drawer (Replan)
 tools:
   candidates: []
-  correct: knife
+  correct: bottle
